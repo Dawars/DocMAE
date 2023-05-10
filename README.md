@@ -11,3 +11,10 @@ https://arxiv.org/abs/2304.10341
 - [ ] Evaluation
 - [ ] Code clean up and documentation
 - [ ] Model release
+
+
+## Data
+### Pre-training
+- 3411482 pages from ~1M documents from Docile dataset (https://github.com/rossumai/docile)
+- Rendered with Doc3D https://github.com/Dawars/doc3D-renderer
+- 558 HDR env lighting from https://hdri-haven.com/
