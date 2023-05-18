@@ -7,7 +7,7 @@ https://arxiv.org/abs/2304.10341
 ## TODO
 
 - [x] Document background segmentation network using U2 net
-- [ ] Synthetic data generation for self-supervised pre-training (in progress)
+- [ ] Synthetic data generation for self-supervised pre-training (in progress: 900k done)
 - [ ] Pre-training
 - [ ] Fine-tuning for document rectification
 - [ ] Evaluation
