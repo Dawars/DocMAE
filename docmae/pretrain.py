@@ -12,7 +12,7 @@
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
-
+import glob
 import logging
 import os
 import sys
@@ -207,12 +207,12 @@ def main():
 
     # Initialize our dataset.
     ds_train = datasets.Dataset.from_dict(
-        {"image": list([str(path) for path in Path(data_args.data_files["train"]).glob("*.jpg")])},
+        {"image": sorted(glob.glob(os.path.join(data_args.data_files["train"], "*.jpg")))},
         split=datasets.Split.TRAIN,
     ).cast_column("image", datasets.Image(decode=True))
 
     ds_val = datasets.Dataset.from_dict(
-        {"image": list([str(path) for path in Path(data_args.data_files["val"]).glob("*.png")])},
+        {"image": sorted(glob.glob(os.path.join(data_args.data_files["val"], "*.jpg")))},
         split=datasets.Split.VALIDATION,
     ).cast_column("image", datasets.Image(decode=True))
 
