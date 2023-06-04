@@ -13,6 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 import glob
+import json
 import logging
 import os
 import sys
@@ -20,6 +21,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+import argparse
 import torch
 import datasets
 from torchvision.transforms import Compose, Lambda, Normalize, RandomHorizontalFlip, RandomResizedCrop, ToTensor
@@ -37,6 +39,8 @@ from transformers import (
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version, send_example_telemetry
 from transformers.utils.versions import require_version
+
+from docmae import setup_logging
 
 """ Pre-training a 🤗 ViT model as an MAE (masked autoencoder), as proposed in https://arxiv.org/abs/2111.06377."""
 
@@ -149,18 +153,46 @@ def collate_fn(examples):
     return {"pixel_values": pixel_values}
 
 
+def parse_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-c", "--config", type=str,
+                        help="config file for training parameters")
+    parser.add_argument("-ll", "--log-level", type=str, default="INFO",
+                        choices=["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
+                        help="config file for training parameters")
+    parser.add_argument("-l", "--log-dir", type=str, default="",
+                        help="folder to store log files")
+    parser.add_argument("-t", "--tensorboard-dir", type=str, default="",
+                        help="folder to store tensorboard logs")
+    parser.add_argument("-m", "--model-output-dir", type=str, default="model",
+                        help="folder to store trained models")
+    return parser.parse_args()
+
+
 def main():
+    args = parse_arguments()
+    setup_logging(log_level=args.log_level, log_dir=args.log_dir)
+
+    assert args.config.endswith(".json")
+
+    # Save config for training traceability and load config parameters
+    config_file = Path(args.model_output_dir) / "config.json"
+    config = json.loads(Path(args.config).read_text())
+
+    config["logging_dir"] = args.tensorboard_dir
+    config["output_dir"] = args.model_output_dir
+
+    config_file.write_text(json.dumps(config))
+    train(config_file)
+
+
+def train(config_file: str):
     # See all possible arguments in src/transformers/training_args.py
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
 
     parser = HfArgumentParser((ModelArguments, DataTrainingArguments, CustomTrainingArguments))
-    if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
-        # If we pass only one argument to the script and it's the path to a json file,
-        # let's parse it to get our arguments.
-        model_args, data_args, training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
-    else:
-        model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+    model_args, data_args, training_args = parser.parse_json_file(json_file=config_file)
 
     # Sending telemetry. Tracking the example usage helps us better allocate resources to maintain them. The
     # information sent is the one passed as arguments along with your Python/PyTorch versions.
@@ -194,7 +226,7 @@ def main():
     last_checkpoint = None
     if os.path.isdir(training_args.output_dir) and training_args.do_train and not training_args.overwrite_output_dir:
         last_checkpoint = get_last_checkpoint(training_args.output_dir)
-        if last_checkpoint is None and len(os.listdir(training_args.output_dir)) > 0:
+        if last_checkpoint is None and len(os.listdir(training_args.output_dir)) > 1:  # ignore config.json which is always there
             raise ValueError(
                 f"Output directory ({training_args.output_dir}) already exists and is not empty. "
                 "Use --overwrite_output_dir to overcome."
