@@ -180,10 +180,10 @@ def main():
     config = json.loads(Path(args.config).read_text())
 
     config["logging_dir"] = args.tensorboard_dir
-    config["output_dir"] = args.model_output_dir
+    config["output_dir"] = os.path.join(args.model_output_dir, "checkpoints")
 
     config_file.write_text(json.dumps(config))
-    train(config_file)
+    train(str(config_file))
 
 
 def train(config_file: str):
@@ -226,7 +226,7 @@ def train(config_file: str):
     last_checkpoint = None
     if os.path.isdir(training_args.output_dir) and training_args.do_train and not training_args.overwrite_output_dir:
         last_checkpoint = get_last_checkpoint(training_args.output_dir)
-        if last_checkpoint is None and len(os.listdir(training_args.output_dir)) > 1:  # ignore config.json which is always there
+        if last_checkpoint is None and len(os.listdir(training_args.output_dir)) > 0:
             raise ValueError(
                 f"Output directory ({training_args.output_dir}) already exists and is not empty. "
                 "Use --overwrite_output_dir to overcome."
