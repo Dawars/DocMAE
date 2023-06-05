@@ -12,7 +12,7 @@ python = "~3.10"
 opencv-python-headless = "^4.5"
 Pillow-SIMD = "^9.0"
 torch = [
-    {markers = "sys_platform == 'linux'", url="https://download.pytorch.org/whl/torch/torch-2.0.1%2Bcu118-cp310-cp310-linux_x86_64.whl"},
+    {markers = "sys_platform == 'linux'", url="https://download.pytorch.org/whl/cu118/torch-2.0.1%2Bcu118-cp310-cp310-linux_x86_64.whl"},
     {markers = "sys_platform == 'darwin' and platform_machine == 'x86_64'", url="https://download.pytorch.org/whl/cpu/torch-2.0.1-cp310-none-macosx_10_9_x86_64.whl"},
     {markers = "sys_platform == 'darwin' and platform_machine == 'arm64'", url="https://download.pytorch.org/whl/cpu/torch-2.0.1-cp310-none-macosx_11_0_arm64.whl"},
     {markers = "sys_platform == 'win32'", url="https://download.pytorch.org/whl/cu118/torch-2.0.1%2Bcu118-cp310-cp310-win_amd64.whl"},
