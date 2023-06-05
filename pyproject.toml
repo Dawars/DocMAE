@@ -27,6 +27,7 @@ torchmetrics = "^0.11.1"
 torchsummary = "^1.5.1"
 datasets = "^2.12"
 transformers = "^4.29"
+accelerate = "^0.19"
 
 matplotlib = "^3.6"
 numpy = "^1.24"
