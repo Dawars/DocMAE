@@ -61,6 +61,7 @@ class DataTrainingArguments:
     the command line.
     """
 
+    dataset_name: Optional[str] = field(metadata={"help": "Name of a dataset from the datasets package"})
     image_column_name: Optional[str] = field(default=None, metadata={"help": "The column name of the images in the files."})
     train_dir: Optional[str] = field(default=None, metadata={"help": "A folder containing the training data."})
     validation_dir: Optional[str] = field(default=None, metadata={"help": "A folder containing the validation data."})
