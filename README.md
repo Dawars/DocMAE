@@ -7,8 +7,8 @@ https://arxiv.org/abs/2304.10341
 ## TODO
 
 - [x] Document background segmentation network using U2 net
-- [ ] Synthetic data generation for self-supervised pre-training (in progress: 1M done)
-- [ ] Pre-training (in progress: training)
+- [x] Synthetic data generation for self-supervised pre-training
+- [x] Pre-training
 - [ ] Fine-tuning for document rectification
 - [ ] Evaluation
 - [ ] Code clean up and documentation
@@ -25,6 +25,10 @@ Find a jupyter notebook at [demo/background_segmentation.ipynb](demo/background_
 - 3411482 pages from ~1M documents from Docile dataset (https://github.com/rossumai/docile)
 - Rendered with Doc3D https://github.com/Dawars/doc3D-renderer
 - 558 HDR env lighting from https://hdri-haven.com/
+
+Pretraining on 200k documents:
+
+![MAE](assets/19_mae.png)
 
 #### Run training via:
 `python pretrain.py -c config/config.json`
