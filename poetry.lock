@@ -14,14 +14,14 @@ files = [
 
 [[package]]
 name = "accelerate"
-version = "0.19.0"
+version = "0.20.3"
 description = "Accelerate"
 category = "main"
 optional = false
 python-versions = ">=3.7.0"
 files = [
-    {file = "accelerate-0.19.0-py3-none-any.whl", hash = "sha256:2866b0bf9fff08f51e6384c95fa96725838b70f1988d1cce42e56b820d8a91dd"},
-    {file = "accelerate-0.19.0.tar.gz", hash = "sha256:84920226b9e642e453ef37593ee55b956b08d8200dea4087c546c34e26157e76"},
+    {file = "accelerate-0.20.3-py3-none-any.whl", hash = "sha256:147183e7a2215f7bd45a7af3b986a963daa8a61fa58b0912b9473049e011ad15"},
+    {file = "accelerate-0.20.3.tar.gz", hash = "sha256:79a896978c20dac270083d42bf033f4c9a80dcdd6b946f1ca92d8d6d0f0f5ba9"},
 ]
 
 [package.dependencies]
@@ -2869,4 +2869,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "~3.10"
-content-hash = "4c15bf6d1d2be257ec9343149073201025cac53fbce2e7ac215909569e06cbbe"
+content-hash = "0937e5368707f96faa7186090de0da985620c79f1b996565a7bae31384832c62"
