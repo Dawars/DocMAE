@@ -9,7 +9,7 @@ https://arxiv.org/abs/2304.10341
 - [x] Document background segmentation network using U2 net
 - [x] Synthetic data generation for self-supervised pre-training
 - [x] Pre-training
-- [ ] Fine-tuning for document rectification
+- [ ] Fine-tuning for document rectification (In progress)
 - [ ] Evaluation
 - [ ] Code clean up and documentation
 - [ ] Model release
