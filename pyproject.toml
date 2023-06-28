@@ -23,6 +23,7 @@ torchvision = [
     {markers = "sys_platform == 'darwin' and platform_machine == 'arm64'", url="https://download.pytorch.org/whl/cpu/torchvision-0.15.2-cp310-cp310-macosx_10_9_x86_64.whl"},
     {markers = "sys_platform == 'win32'", url="https://download.pytorch.org/whl/cu118/torchvision-0.15.2%2Bcu118-cp310-cp310-win_amd64.whl"},
 ]
+lightning = "^2.0.4"
 torchmetrics = "^0.11.1"
 torchsummary = "^1.5.1"
 datasets = "^2.13"
@@ -34,6 +35,8 @@ numpy = "^1.24"
 scikit-image = "^0.19"
 scikit-learn = ">=1.0"
 tensorboard = "^2.3"
+minio = "^7.1.15"
+h5py = "^3.9.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
