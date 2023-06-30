@@ -58,8 +58,7 @@ class DocMAE(L.LightningModule):
             image_processor: ViTImageProcessor,
             encoder: ViTMAEModel,
             decoder: ViTMAEDecoder,
-            hidden_dim: int,
-            upscale_type: str = "raft",
+            hparams,
     ):
         super().__init__()
         self.example_input_array = torch.rand(1, 3, 288, 288)
@@ -70,11 +69,20 @@ class DocMAE(L.LightningModule):
         self.decoder_norm = nn.LayerNorm(decoder.config.decoder_hidden_size, eps=decoder.config.layer_norm_eps)
 
         self.P = PATCH_SIZE
-        self.hidden_dim = hidden_dim
-        self.upscale_type = upscale_type
-        self.update_block = UpdateBlock(self.hidden_dim)  # todo check paper for hidden_dim
+        self.hidden_dim = hparams["hidden_dim"]
+        self.upscale_type = hparams["upscale_type"]
+        self.freeze_backbone = hparams["freeze_backbone"]
 
+        self.update_block = UpdateBlock(self.hidden_dim)  # todo check paper for hidden_dim
         self.loss = L1Loss()
+        self.save_hyperparameters(hparams)
+        if self.freeze_backbone:
+            for p in self.encoder.parameters():
+                p.requires_grad = False
+            for p in self.decoder.parameters():
+                p.requires_grad = False
+            for p in self.decoder_norm.parameters():
+                p.requires_grad = False
 
     def on_fit_start(self):
         self.tb_log = self.logger.experiment
@@ -113,13 +121,7 @@ class DocMAE(L.LightningModule):
         # -> B x 512 x 18 x 18 (B x 256 x 36 x 36)
         fmap = fmap.permute(0, 2, 1)
         fmap = fmap.reshape(-1, self.hidden_dim, 18, 18)
-
-        if self.upscale_type == "raft":
-            bm_up = self.flow_head(fmap, x)
-        elif self.upscale_type == "interpolate":
-            bm_up = upflow16(fmap)
-        else:
-            raise NotImplementedError
+        bm_up = self.flow_head(fmap, x)
         return bm_up
 
     def training_step(self, batch):
@@ -211,7 +213,16 @@ class DocMAE(L.LightningModule):
         # convex upsample based on fmap
         coodslar, coords0, coords1 = self.initialize_flow(image1)
         coords1 = coords1.detach()
-        mask, coords1 = self.update_block(fmap, coords1)
-        flow_up = self.upsample_flow(coords1 - coords0, mask)
+
+        if self.upscale_type == "raft":
+            mask, coords1 = self.update_block(fmap, coords1)
+            flow_up = self.upsample_flow(coords1 - coords0, mask)
+
+        elif self.upscale_type == "interpolate":
+            mask, coords1 = self.update_block(fmap, coords1)
+            flow_up = upflow16(coords1 - coords0)
+        else:
+            raise NotImplementedError
+
         bm_up = coodslar + flow_up
         return bm_up

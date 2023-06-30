@@ -88,7 +88,7 @@ def train(args, config: dict):
     mae_encoder = ViTMAEModel(pretrained_config)
     mae_decoder = ViTMAEDecoder(pretrained_config, mae_encoder.embeddings.num_patches)
 
-    model = DocMAE(image_processor, mae_encoder, mae_decoder, hidden_dim=512, upscale_type="raft")
+    model = DocMAE(image_processor, mae_encoder, mae_decoder, config)
 
     trainer.fit(model, train_loader, val_loader)
 

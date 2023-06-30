@@ -1,5 +1,7 @@
 {
   "mae_path": "/home/dawars/projects/models/docmae_pretrain",
-  "dataset_path": "/home/dawars/datasets/doc3d/"
-
+  "dataset_path": "/home/dawars/datasets/doc3d/",
+  "hidden_dim": 512,
+  "upscale_type": "interpolate",
+  "freeze_backbone": true
 }
