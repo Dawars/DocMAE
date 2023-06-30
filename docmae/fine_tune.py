@@ -85,7 +85,6 @@ def train(args, config: dict):
         accelerator="gpu",
         devices=1,
         max_epochs=config["epochs"],
-        val_check_interval=10_000,
         num_sanity_val_steps=1,
         enable_progress_bar=False,
     )
