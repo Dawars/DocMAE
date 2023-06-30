@@ -84,6 +84,8 @@ def train(args, config: dict):
         callbacks=callback_list,
         accelerator="gpu",
         devices=1,
+        max_epochs=config["epochs"],
+        val_check_interval=10_000,
         num_sanity_val_steps=1,
     )
 
