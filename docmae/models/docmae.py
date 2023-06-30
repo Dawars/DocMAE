@@ -86,6 +86,10 @@ class DocMAE(L.LightningModule):
 
     def on_fit_start(self):
         self.tb_log = self.logger.experiment
+        additional_metrics = ["val/loss"]
+        self.logger.log_hyperparams(
+            self.hparams, {**{key: 0 for key in additional_metrics}}
+        )
 
     def configure_optimizers(self):
         """
