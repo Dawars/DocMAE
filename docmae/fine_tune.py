@@ -18,7 +18,6 @@ from transformers import (
 )
 from transformers.models.vit_mae.modeling_vit_mae import ViTMAEDecoder, ViTMAEModel
 
-from docmae.data.doc3d import Doc3D
 from docmae.models.docmae import DocMAE
 
 from docmae import setup_logging
@@ -52,20 +51,26 @@ def train(args, config: dict):
         ]
     )
 
-    train_files = (Path(config["dataset_path"]) / "train.txt").read_text().split()
-    val_files = (Path(config["dataset_path"]) / "val.txt").read_text().split()
-    # train_dataset = Doc3D(train_files, train_transform)
-    # val_dataset = Doc3D(val_files, train_transform)
-    train_dataset = Doc3D(Path(config["dataset_path"]), "tiny", train_transform)
-    val_dataset = Doc3D(Path(config["dataset_path"]), "tiny", train_transform)
-    train_loader = DataLoader(train_dataset, 64, shuffle=True, num_workers=0, pin_memory=True)
-    val_loader = DataLoader(val_dataset, 64, shuffle=False, num_workers=0, pin_memory=True)
+    if config["use_minio"]:
+        from docmae.data.doc3d_minio import Doc3D
+
+        train_files = (Path(config["dataset_path"]) / "train.txt").read_text().split()
+        val_files = (Path(config["dataset_path"]) / "val.txt").read_text().split()
+        train_dataset = Doc3D(train_files, train_transform)
+        val_dataset = Doc3D(val_files, train_transform)
+    else:
+        from docmae.data.doc3d import Doc3D
+
+        train_dataset = Doc3D(Path(config["dataset_path"]), "tiny", train_transform)
+        val_dataset = Doc3D(Path(config["dataset_path"]), "tiny", train_transform)
+    train_loader = DataLoader(train_dataset, config["batch_size"], shuffle=True, num_workers=config["num_workers"], pin_memory=True)
+    val_loader = DataLoader(val_dataset, config["batch_size"], shuffle=False, num_workers=config["num_workers"], pin_memory=True)
 
     callback_list = [
         LearningRateMonitor(logging_interval="step"),
         ModelCheckpoint(
             dirpath=args.model_output_dir,
-            filename="BinaryPrecision_{epoch:d}",
+            filename="epoch_{epoch:d}",
             monitor="val/loss",
             mode="max",
             save_top_k=1,

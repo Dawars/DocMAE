@@ -96,7 +96,7 @@ class DocMAE(L.LightningModule):
         """
 
         optimizer = torch.optim.Adam(self.parameters())
-        scheduler = OneCycleLR(optimizer, 1e-4, epochs=65, steps_per_epoch=200_000 // 64)
+        scheduler = OneCycleLR(optimizer, 1e-4, epochs=self.hparams["epochs"], steps_per_epoch=200_000 // self.hparams["batch_size"])
         return {
             "optimizer": optimizer,
             "lr_scheduler": scheduler,

@@ -1,6 +1,10 @@
 {
   "mae_path": "/home/dawars/projects/models/docmae_pretrain",
   "dataset_path": "/home/dawars/datasets/doc3d/",
+  "epochs": 65,
+  "batch_size": 64,
+  "num_workers": 32,
+  "use_minio": false,
   "hidden_dim": 512,
   "upscale_type": "interpolate",
   "freeze_backbone": true
