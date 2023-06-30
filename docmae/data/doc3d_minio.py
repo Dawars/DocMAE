@@ -78,6 +78,7 @@ class Doc3D(Dataset):
         obj_bm = self.client.get_object("cvie", self.prefix_bm + filename + ".mat")
         h5file = h5py.File(BytesIO(obj_bm.data), "r")
         flow = np.array(h5file.get("bm"))
+        flow = np.flip(flow, 0).copy()
         flow = datapoints.Image(flow)
 
         # mask from uv

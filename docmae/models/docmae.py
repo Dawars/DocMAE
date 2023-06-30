@@ -162,7 +162,6 @@ class DocMAE(L.LightningModule):
         # training image sanity check
         if self.global_step == 0:
             self.tb_log.add_images("train/image", image, global_step=self.global_step)
-        # TODO check input scale (/255?)
         flow_pred = self.forward(image)
 
         # log metrics
@@ -170,8 +169,6 @@ class DocMAE(L.LightningModule):
 
         self.log("val/loss", loss, on_epoch=True, batch_size=batch_size)
 
-        # self.log("val/loss_sec", loss_sec, batch_size=batch_size, on_epoch=True, prog_bar=True)
-        # self.log("val/loss", loss, batch_size=batch_size, on_epoch=True, prog_bar=True)
         zeros = torch.zeros((batch_size, 1, 288, 288), device=self.device)
         def viz_flow(img): return (img / 448 - 0.5) * 2
         if batch_idx == 0 and self.global_step == 0:
@@ -180,10 +177,11 @@ class DocMAE(L.LightningModule):
         self.tb_log.add_images("val/flow_pred", torch.cat((viz_flow(flow_pred), zeros), dim=1), global_step=self.global_step)
 
         bm_ = viz_flow(flow_pred)
-        bm_ = bm_.permute((0, 3, 2, 1))
+        bm_ = bm_.permute((0, 2, 3, 1))
         img_ = image
         uw = F.grid_sample(img_, bm_)
-        self.tb_log.add_images("val/unwarped", uw.permute(0, 1, 3, 2), global_step=self.global_step)  # TODO HW order?
+
+        self.tb_log.add_images("val/unwarped", uw, global_step=self.global_step)
 
     def on_test_start(self):
         self.tb_log = self.logger.experiment

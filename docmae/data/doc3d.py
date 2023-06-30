@@ -1,13 +1,9 @@
-import os
 import logging
 import warnings
-from io import BytesIO
 from pathlib import Path
 
 import h5py
-import urllib3
 from urllib3.exceptions import InsecureRequestWarning
-from minio import Minio
 from PIL import Image
 import cv2
 import numpy as np
@@ -50,6 +46,7 @@ class Doc3D(Dataset):
         # backwards mapping
         h5file = h5py.File(self.data_root / self.prefix_bm / f"{filename}.mat", "r")
         flow = np.array(h5file.get("bm"))
+        flow = np.flip(flow, 0).copy()
         flow = datapoints.Image(flow)
 
         # mask from uv
