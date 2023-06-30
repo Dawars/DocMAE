@@ -1,3 +1,4 @@
+import os
 import logging
 import warnings
 from pathlib import Path
@@ -15,6 +16,7 @@ LOGGER = logging.getLogger(__name__)
 
 warnings.filterwarnings("ignore", category=InsecureRequestWarning)
 torchvision.disable_beta_transforms_warning()
+os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
 
 
 class Doc3D(Dataset):
