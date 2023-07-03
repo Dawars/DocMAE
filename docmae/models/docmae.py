@@ -8,35 +8,9 @@ from torch.utils.tensorboard import SummaryWriter
 from transformers import ViTImageProcessor
 from transformers.models.vit_mae.modeling_vit_mae import ViTMAEDecoder, ViTMAEModel
 
+from docmae.models.modules import expansion_block
+
 PATCH_SIZE = 16
-
-
-# Flow related code taken from https://github.com/fh2019ustc/DocTr/blob/main/GeoTr.py
-class FlowHead(nn.Module):
-    def __init__(self, input_dim=512, hidden_dim=256):
-        super(FlowHead, self).__init__()
-        self.conv1 = nn.Conv2d(input_dim, hidden_dim, 3, padding=1)
-        self.conv2 = nn.Conv2d(hidden_dim, 2, 3, padding=1)
-        self.relu = nn.ReLU(inplace=True)
-
-    def forward(self, x):
-        return self.conv2(self.relu(self.conv1(x)))
-
-
-class UpdateBlock(nn.Module):
-    def __init__(self, hidden_dim=128):
-        super(UpdateBlock, self).__init__()
-        self.flow_head = FlowHead(hidden_dim, hidden_dim=256)
-        self.mask = nn.Sequential(
-            nn.Conv2d(hidden_dim, 256, 3, padding=1), nn.ReLU(inplace=True), nn.Conv2d(256, PATCH_SIZE ** 2 * 9, 1, padding=0)
-        )
-
-    def forward(self, imgf, coords1):
-        dflow = self.flow_head(imgf)
-        mask = 0.25 * self.mask(imgf)  # scale mask to balance gradients
-        coords1 = coords1 + dflow
-
-        return mask, coords1
 
 
 def coords_grid(batch, ht, wd):
@@ -45,9 +19,74 @@ def coords_grid(batch, ht, wd):
     return coords[None].repeat(batch, 1, 1, 1)
 
 
-def upflow16(flow, mode="bilinear"):
-    new_size = (16 * flow.shape[2], 16 * flow.shape[3])
-    return 16 * F.interpolate(flow, size=new_size, mode=mode, align_corners=True)
+# Flow related code taken from https://github.com/fh2019ustc/DocTr/blob/main/GeoTr.py
+class UpscaleRAFT(nn.Module):
+    """
+    Infers conv mask to upscale flow
+    """
+
+    def __init__(self, input_dim=512, hidden_dim=256):
+        super(UpscaleRAFT, self).__init__()
+        self.P = PATCH_SIZE
+
+        self.conv1 = nn.Conv2d(input_dim, hidden_dim, 3, padding=1)
+        self.conv2 = nn.Conv2d(hidden_dim, 2, 3, padding=1)
+        self.relu = nn.ReLU(inplace=True)
+
+        self.mask = nn.Sequential(
+            nn.Conv2d(input_dim, 256, 3, padding=1), nn.ReLU(inplace=True), nn.Conv2d(256, PATCH_SIZE**2 * 9, 1, padding=0)
+        )
+
+    def upsample_flow(self, flow, mask):
+        N, _, H, W = flow.shape
+        mask = mask.view(N, 1, 9, self.P, self.P, H, W)
+        mask = torch.softmax(mask, dim=2)
+
+        up_flow = F.unfold(self.P * flow, (3, 3), padding=1)
+        up_flow = up_flow.view(N, 2, 9, 1, 1, H, W)
+
+        up_flow = torch.sum(mask * up_flow, dim=2)
+        up_flow = up_flow.permute(0, 1, 4, 2, 5, 3)
+
+        return up_flow.reshape(N, 2, self.P * H, self.P * W)
+
+    def forward(self, imgf):
+        mask = 0.25 * self.mask(imgf)  # scale mask to balance gradients
+        flow = self.conv2(self.relu(self.conv1(imgf)))
+        upflow = self.upsample_flow(flow, mask)
+        return upflow
+
+
+class UpscaleTransposeConv(nn.Module):
+    def __init__(self, input_dim=512, hidden_dim=256, mode="bilinear"):
+        super().__init__()
+        self.layers = [
+            expansion_block(input_dim, hidden_dim, hidden_dim // 2),
+            expansion_block(hidden_dim // 2, hidden_dim // 4, hidden_dim // 8),
+            expansion_block(hidden_dim // 8, hidden_dim // 16, 2, relu=False),
+
+            nn.Upsample(scale_factor=2, mode=mode),
+        ]
+
+        self.layers = nn.Sequential(*self.layers)
+
+    def forward(self, imgf):
+        return self.layers(imgf)
+
+
+class UpscaleInterpolate(nn.Module):
+    def __init__(self, input_dim=512, hidden_dim=256, mode="bilinear"):
+        super().__init__()
+        self.mode = mode
+        self.conv1 = nn.Conv2d(input_dim, hidden_dim, 3, padding=1)
+        self.conv2 = nn.Conv2d(hidden_dim, 2, 3, padding=1)
+        self.relu = nn.ReLU(inplace=True)
+
+    def forward(self, imgf):
+        flow = self.conv2(self.relu(self.conv1(imgf)))
+
+        new_size = (16 * flow.shape[2], 16 * flow.shape[3])
+        return 16 * F.interpolate(flow, size=new_size, mode=self.mode, align_corners=True)
 
 
 class DocMAE(L.LightningModule):
@@ -62,6 +101,7 @@ class DocMAE(L.LightningModule):
     ):
         super().__init__()
         self.example_input_array = torch.rand(1, 3, 288, 288)
+        self.coodslar = self.initialize_flow(self.example_input_array)
 
         self.image_processor = image_processor
         self.encoder = encoder
@@ -73,7 +113,14 @@ class DocMAE(L.LightningModule):
         self.upscale_type = hparams["upscale_type"]
         self.freeze_backbone = hparams["freeze_backbone"]
 
-        self.update_block = UpdateBlock(self.hidden_dim)  # todo check paper for hidden_dim
+        if self.upscale_type == "raft":
+            self.upscale_module = UpscaleRAFT(self.hidden_dim, hidden_dim=256)
+        elif self.upscale_type == "transpose_conv":
+            self.upscale_module = UpscaleTransposeConv(self.hidden_dim)
+        elif self.upscale_type == "interpolate":
+            self.upscale_module = UpscaleInterpolate()
+        else:
+            raise NotImplementedError
         self.loss = L1Loss()
         self.save_hyperparameters(hparams)
         if self.freeze_backbone:
@@ -85,11 +132,11 @@ class DocMAE(L.LightningModule):
                 p.requires_grad = False
 
     def on_fit_start(self):
+        self.coodslar = self.coodslar.to(self.device)
+
         self.tb_log = self.logger.experiment
         additional_metrics = ["val/loss"]
-        self.logger.log_hyperparams(
-            self.hparams, {**{key: 0 for key in additional_metrics}}
-        )
+        self.logger.log_hyperparams(self.hparams, {**{key: 0 for key in additional_metrics}})
 
     def configure_optimizers(self):
         """
@@ -100,7 +147,9 @@ class DocMAE(L.LightningModule):
         """
 
         optimizer = torch.optim.Adam(self.parameters())
-        scheduler = OneCycleLR(optimizer, 1e-4, epochs=self.hparams["epochs"], steps_per_epoch=200_000 // self.hparams["batch_size"])
+        scheduler = OneCycleLR(
+            optimizer, 1e-4, epochs=self.hparams["epochs"], steps_per_epoch=200_000 // self.hparams["batch_size"]
+        )
         return {
             "optimizer": optimizer,
             "lr_scheduler": scheduler,
@@ -108,6 +157,12 @@ class DocMAE(L.LightningModule):
         }
 
     def forward(self, x):
+        """
+        Runs inference: image_processing, encoder, decoder, layer norm, flow head
+        Args:
+            x: image
+        Returns: flow displacement
+        """
         inputs = self.image_processor(images=x, return_tensors="pt")
 
         inputs["pixel_values"] = inputs["pixel_values"].to(self.device)
@@ -125,8 +180,8 @@ class DocMAE(L.LightningModule):
         # -> B x 512 x 18 x 18 (B x 256 x 36 x 36)
         fmap = fmap.permute(0, 2, 1)
         fmap = fmap.reshape(-1, self.hidden_dim, 18, 18)
-        bm_up = self.flow_head(fmap, x)
-        return bm_up
+        upflow = self.flow(fmap)
+        return upflow
 
     def training_step(self, batch):
         image = batch["image"] * batch["mask"].unsqueeze(1) / 255
@@ -140,10 +195,11 @@ class DocMAE(L.LightningModule):
             self.tb_log.add_images("train/image", image, global_step=self.global_step)
             self.tb_log.add_images("val/flow", torch.cat((viz_flow(flow), zeros), dim=1), global_step=self.global_step)
 
-        outputs = self.forward(image)
+        dflow = self.forward(image)
+        flow_pred = self.coodslar + dflow
 
         # log metrics
-        loss = self.loss(flow, outputs)
+        loss = self.loss(flow, flow_pred)
 
         self.log("train/loss", loss, on_step=True, on_epoch=True, batch_size=batch_size)
 
@@ -158,6 +214,7 @@ class DocMAE(L.LightningModule):
         #             self.tb_log.add_histogram(f"{name}_grad", param.grad, global_step)
 
     def on_validation_start(self):
+        self.coodslar = self.coodslar.to(self.device)
         self.tb_log = self.logger.experiment
 
     def validation_step(self, val_batch, batch_idx):
@@ -168,7 +225,8 @@ class DocMAE(L.LightningModule):
         # training image sanity check
         if self.global_step == 0:
             self.tb_log.add_images("train/image", image, global_step=self.global_step)
-        flow_pred = self.forward(image)
+        dflow = self.forward(image)
+        flow_pred = self.coodslar + dflow
 
         # log metrics
         loss = self.loss(flow_target, flow_pred)
@@ -195,38 +253,12 @@ class DocMAE(L.LightningModule):
     def initialize_flow(self, img):
         N, C, H, W = img.shape
         coodslar = coords_grid(N, H, W).to(img.device)
-        coords0 = coords_grid(N, H // self.P, W // self.P).to(img.device)
-        coords1 = coords_grid(N, H // self.P, W // self.P).to(img.device)
+        # coords0 = coords_grid(N, H // self.P, W // self.P).to(img.device)
+        # coords1 = coords_grid(N, H // self.P, W // self.P).to(img.device)
 
-        return coodslar, coords0, coords1
+        return coodslar  # , coords0, coords1
 
-    def upsample_flow(self, flow, mask):
-        N, _, H, W = flow.shape
-        mask = mask.view(N, 1, 9, self.P, self.P, H, W)
-        mask = torch.softmax(mask, dim=2)
-
-        up_flow = F.unfold(self.P * flow, (3, 3), padding=1)
-        up_flow = up_flow.view(N, 2, 9, 1, 1, H, W)
-
-        up_flow = torch.sum(mask * up_flow, dim=2)
-        up_flow = up_flow.permute(0, 1, 4, 2, 5, 3)
-
-        return up_flow.reshape(N, 2, self.P * H, self.P * W)
-
-    def flow_head(self, fmap, image1):
+    def flow(self, fmap):
         # convex upsample based on fmap
-        coodslar, coords0, coords1 = self.initialize_flow(image1)
-        coords1 = coords1.detach()
-
-        if self.upscale_type == "raft":
-            mask, coords1 = self.update_block(fmap, coords1)
-            flow_up = self.upsample_flow(coords1 - coords0, mask)
-
-        elif self.upscale_type == "interpolate":
-            mask, coords1 = self.update_block(fmap, coords1)
-            flow_up = upflow16(coords1 - coords0)
-        else:
-            raise NotImplementedError
-
-        bm_up = coodslar + flow_up
-        return bm_up
+        flow_up = self.upscale_module(fmap)
+        return flow_up
