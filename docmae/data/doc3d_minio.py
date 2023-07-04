@@ -71,20 +71,32 @@ class Doc3D(Dataset):
     def __getitem__(self, idx):
         filename = self.filenames[idx]
 
-        obj_img = self.client.get_object("cvie", self.prefix_img + filename + ".png")
-        image = Image.open(obj_img).convert("RGB")
+        try:
+            obj_img = self.client.get_object("cvie", self.prefix_img + filename + ".png")
+            image = Image.open(obj_img).convert("RGB")
+        finally:
+            obj_img.close()
+            obj_img.release_conn()
         image = datapoints.Image(image)
 
         # backwards mapping
-        obj_bm = self.client.get_object("cvie", self.prefix_bm + filename + ".mat")
-        h5file = h5py.File(BytesIO(obj_bm.data), "r")
+        try:
+            obj_bm = self.client.get_object("cvie", self.prefix_bm + filename + ".mat")
+            h5file = h5py.File(BytesIO(obj_bm.data), "r")
+        finally:
+            obj_bm.close()
+            obj_bm.release_conn()
         flow = np.array(h5file.get("bm"))
         flow = np.flip(flow, 0).copy()
         flow = datapoints.Image(flow)
 
         # mask from uv
-        obj_uv = self.client.get_object("cvie", self.prefix_uv + filename + ".exr")
-        exr_data = obj_uv.read()
+        try:
+            obj_uv = self.client.get_object("cvie", self.prefix_uv + filename + ".exr")
+            exr_data = obj_uv.read()
+        finally:
+            obj_uv.close()
+            obj_uv.release_conn()
         exr_array = np.asarray(bytearray(exr_data), dtype=np.uint8)
 
         # Decode the EXR data using OpenCV
