@@ -15,7 +15,7 @@ class MAE(L.LightningModule):
 
     def __init__(self, image_processor, encoder, decoder, hparams, training: bool):
         super().__init__()
-        # self.example_input_array = torch.rand(1, 3, 288, 288)
+        self.example_input_array = torch.rand(1, 3, 288, 288)
 
         self.segmenter = torch.jit.load(hparams["segmenter_ckpt"])
         self.segmenter = torch.jit.freeze(self.segmenter)
@@ -81,7 +81,7 @@ class MAE(L.LightningModule):
         if not self.is_training:
             return outputs
 
-        decoder_outputs = self.decoder(latent, ids_restore)
+        decoder_outputs = self.decoder(latent, ids_restore.long())
         logits = decoder_outputs.logits  # shape (batch_size, num_patches, patch_size*patch_size*num_channels)
 
         output = (logits, mask, ids_restore)
