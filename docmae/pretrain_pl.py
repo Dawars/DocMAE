@@ -25,8 +25,6 @@ def train(args, config_file: str):
     config = json.loads(Path(config_file).read_text())
     L.seed_everything(config["seed"])
 
-    image_processor = ViTImageProcessor(do_rescale=False, do_resize=False, do_normalize=False, size={"height": 288, "width": 288})
-
     pretrained_config = ViTMAEConfig.from_pretrained(config_file)
     pretrained_config.image_size = 288
     encoder = ViTMAEModel(pretrained_config)
@@ -59,7 +57,7 @@ def train(args, config_file: str):
         val_check_interval=10_000 // num_epochs,
     )
 
-    model = MAE(image_processor, encoder, decoder, config, training=True)
+    model = MAE(encoder, decoder, config, training=True)
     transforms = T.Compose([T.Resize(size=(288, 288)), T.ToTensor()])
 
     dataset_train = ListDataset(Path(config["train_dir"]), "train", transforms)

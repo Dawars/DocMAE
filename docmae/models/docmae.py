@@ -5,7 +5,6 @@ from torch import nn
 from torch.nn import L1Loss
 from torch.optim.lr_scheduler import OneCycleLR
 from torch.utils.tensorboard import SummaryWriter
-from transformers import ViTImageProcessor
 from transformers.models.vit_mae.modeling_vit_mae import ViTMAEDecoder, ViTMAEModel
 
 from docmae.models.modules import expansion_block

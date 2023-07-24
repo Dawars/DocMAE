@@ -13,14 +13,13 @@ from torchvision import transforms
 class MAE(L.LightningModule):
     tb_log: SummaryWriter
 
-    def __init__(self, image_processor, encoder, decoder, hparams, training: bool):
+    def __init__(self, encoder, decoder, hparams, training: bool):
         super().__init__()
         self.example_input_array = torch.rand(1, 3, 288, 288)
 
         self.segmenter = torch.jit.load(hparams["segmenter_ckpt"])
         self.segmenter = torch.jit.freeze(self.segmenter)
         self.segmenter = torch.jit.optimize_for_inference(self.segmenter)
-        self.image_processor = image_processor
         self.encoder = encoder
         self.decoder = decoder
         self.is_training = training
@@ -191,19 +190,17 @@ class MAE(L.LightningModule):
             seg_image = self.normalize(image)
             seg_mask = self.segmenter(seg_image)
             seg_mask = (seg_mask > 0.5).double()
-        with torch.device(self.device):
-            seg_image = image * seg_mask
-            inputs = self.image_processor(images=seg_image, return_tensors="pt")
+
+        seg_image = image * seg_mask
 
         # training image sanity check
         if self.global_step == 0:
             self.tb_log.add_images("train/image", image, global_step=self.global_step)
             self.tb_log.add_images("train/seg_mask", seg_mask, global_step=self.global_step)
 
-        output = self.forward(**inputs)
+        output = self.forward(seg_image)
         (logits, ids_restore, mask) = output
-
-        loss = self.forward_loss(inputs["pixel_values"], logits, mask)
+        loss = self.forward_loss(seg_image, logits, mask)
 
         self.log("train/loss", loss, on_step=True, on_epoch=True, batch_size=batch_size)
 
