@@ -90,12 +90,10 @@ def train(args, config: dict):
     )
 
     pretrained_config = ViTMAEConfig.from_pretrained(config["mae_path"])
-    pretrained_config.mask_ratio = 0
-    image_processor = AutoImageProcessor.from_pretrained(config["mae_path"], size={"height": 288, "width": 288})
-    mae_encoder = ViTMAEModel(pretrained_config)
+    mae_encoder = ViTMAEModel.from_pretrained(config["mae_path"], mask_ratio=0)
     mae_decoder = ViTMAEDecoder(pretrained_config, mae_encoder.embeddings.num_patches)
 
-    model = DocMAE(image_processor, mae_encoder, mae_decoder, config)
+    model = DocMAE(mae_encoder, mae_decoder, config)
 
     trainer.fit(model, train_loader, val_loader)
 

@@ -5,6 +5,7 @@ from torch import nn
 from torch.nn import L1Loss
 from torch.optim.lr_scheduler import OneCycleLR
 from torch.utils.tensorboard import SummaryWriter
+from torchvision.transforms import transforms
 from transformers.models.vit_mae.modeling_vit_mae import ViTMAEDecoder, ViTMAEModel
 
 from docmae.models.modules import expansion_block
@@ -92,20 +93,18 @@ class DocMAE(L.LightningModule):
     tb_log: SummaryWriter
 
     def __init__(
-            self,
-            image_processor: ViTImageProcessor,
-            encoder: ViTMAEModel,
-            decoder: ViTMAEDecoder,
-            hparams,
+        self,
+        encoder: ViTMAEModel,
+        decoder: ViTMAEDecoder,
+        hparams,
     ):
         super().__init__()
         self.example_input_array = torch.rand(1, 3, 288, 288)
         self.coodslar = self.initialize_flow(self.example_input_array)
 
-        self.image_processor = image_processor
         self.encoder = encoder
         self.decoder = decoder
-        self.decoder_norm = nn.LayerNorm(decoder.config.decoder_hidden_size, eps=decoder.config.layer_norm_eps)
+        self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
         self.P = PATCH_SIZE
         self.hidden_dim = hparams["hidden_dim"]
@@ -126,8 +125,6 @@ class DocMAE(L.LightningModule):
             for p in self.encoder.parameters():
                 p.requires_grad = False
             for p in self.decoder.parameters():
-                p.requires_grad = False
-            for p in self.decoder_norm.parameters():
                 p.requires_grad = False
 
     def on_fit_start(self):
@@ -155,17 +152,15 @@ class DocMAE(L.LightningModule):
             "monitor": "train/loss",
         }
 
-    def forward(self, x):
+    def forward(self, inputs):
         """
         Runs inference: image_processing, encoder, decoder, layer norm, flow head
         Args:
-            x: image
+            inputs: image tensor of shape [B, C, H, W]
         Returns: flow displacement
         """
-        inputs = self.image_processor(images=x, return_tensors="pt")
-
-        inputs["pixel_values"] = inputs["pixel_values"].to(self.device)
-        bottleneck = self.encoder.forward(**inputs)
+        inputs = self.normalize(inputs)
+        bottleneck = self.encoder.forward(inputs)
         fmap = self.decoder(
             bottleneck.last_hidden_state,
             bottleneck.ids_restore,
@@ -174,7 +169,7 @@ class DocMAE(L.LightningModule):
         )
 
         last_hidden_state = fmap.hidden_states[-1][:, 1:, :]  # remove CLS token
-        fmap = self.decoder_norm(last_hidden_state)  # layer norm
+        fmap = last_hidden_state  # layer norm
         # B x 18*18 x 512
         # -> B x 512 x 18 x 18 (B x 256 x 36 x 36)
         fmap = fmap.permute(0, 2, 1)
