@@ -52,7 +52,7 @@ def train(args, config_file: str):
         callbacks=callback_list,
         accelerator="cuda",
         max_epochs=num_epochs,
-        enable_progress_bar=config["disable_tqdm"],
+        enable_progress_bar=not config["disable_tqdm"],
 
         limit_train_batches=200_000 // num_epochs,
         limit_val_batches=10_000 // num_epochs,
