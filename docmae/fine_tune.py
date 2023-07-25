@@ -61,8 +61,8 @@ def train(args, config: dict):
     else:
         from docmae.data.doc3d import Doc3D
 
-        train_dataset = Doc3D(Path(config["dataset_path"]), "tiny", train_transform)
-        val_dataset = Doc3D(Path(config["dataset_path"]), "tiny", train_transform)
+        train_dataset = Doc3D(Path(config["dataset_path"]), "train", train_transform)
+        val_dataset = Doc3D(Path(config["dataset_path"]), "val", train_transform)
     train_loader = DataLoader(train_dataset, config["batch_size"], shuffle=True, num_workers=config["num_workers"], pin_memory=True)
     val_loader = DataLoader(val_dataset, config["batch_size"], shuffle=False, num_workers=config["num_workers"], pin_memory=True)
 
