@@ -232,14 +232,16 @@ class DocMAE(L.LightningModule):
         if batch_idx == 0 and self.global_step == 0:
             self.tb_log.add_images("val/image", image, global_step=self.global_step)
             self.tb_log.add_images("val/flow", torch.cat((viz_flow(flow_target), zeros), dim=1), global_step=self.global_step)
-        self.tb_log.add_images("val/flow_pred", torch.cat((viz_flow(flow_pred), zeros), dim=1), global_step=self.global_step)
 
-        bm_ = viz_flow(flow_pred)
-        bm_ = bm_.permute((0, 2, 3, 1))
-        img_ = image
-        uw = F.grid_sample(img_, bm_)
+        if batch_idx == 0:
+            self.tb_log.add_images("val/flow_pred", torch.cat((viz_flow(flow_pred), zeros), dim=1), global_step=self.global_step)
 
-        self.tb_log.add_images("val/unwarped", uw, global_step=self.global_step)
+            bm_ = viz_flow(flow_pred)
+            bm_ = bm_.permute((0, 2, 3, 1))
+            img_ = image
+            uw = F.grid_sample(img_, bm_)
+
+            self.tb_log.add_images("val/unwarped", uw, global_step=self.global_step)
 
     def on_test_start(self):
         self.tb_log = self.logger.experiment
