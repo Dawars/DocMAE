@@ -45,7 +45,8 @@ def parse_arguments():
 def train(args, config: dict):
     train_transform = transforms.Compose(
         [
-            transforms.Resize((288, 288), antialias=True),
+            # transforms.Resize((288, 288), antialias=True),
+            transforms.RandomResizedCrop((288, 288), scale=(0.1, 0.5), antialias=True, interpolation=0),  # todo NEAREST fixes uv edge
             transforms.ToImageTensor(),
             transforms.ToDtype(torch.float32),
         ]

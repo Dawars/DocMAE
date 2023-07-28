@@ -239,6 +239,7 @@ class Doc3D(Dataset):
 
         # back mapping for crop that will unwarp paper region within crop
         bm_manual = torch.from_numpy(fm2bm(uv_crop.permute(1, 2, 0), mask.bool(), 288)).float()
+        # nan?
         axrr[2][0].imshow(np.concatenate((bm_manual / 288, np.ones((288, 288, 1))), axis=-1), vmin=-1, vmax=1)
         axrr[2][0].title.set_text("bm")
         # axrr[2][0].imshow(np.concatenate((flow_[0] / 2 + 0.5, torch.ones(448, 448, 1)), axis=-1))
