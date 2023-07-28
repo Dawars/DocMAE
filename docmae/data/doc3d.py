@@ -30,14 +30,14 @@ def fm2bm(fm, msk, s):
     """
     fm = fm.numpy() * s
 
-    msk = fm[..., 0] > 0
+    # msk = fm[..., 0] > 0
     s2d = fm[msk]
-    tx, ty = np.nonzero(msk)
+    tx, ty = np.where(msk)
     # s2d = fm[:, msk]
     # tx, ty = np.where(msk)
     grid = np.meshgrid(np.linspace(1, s, s), np.linspace(1, s, s))
-    vx = griddata(s2d, tx, tuple(grid), method="nearest") / float(s)
-    vy = griddata(s2d, ty, tuple(grid), method="nearest") / float(s)
+    vx = griddata(s2d, tx, tuple(grid), method="linear")
+    vy = griddata(s2d, ty, tuple(grid), method="linear")
     bm = np.stack([vy, vx], axis=-1)
     return bm
 
@@ -186,10 +186,9 @@ class Doc3D(Dataset):
         print(min_x, max_x, min_y, max_y)
         # print(min_flow_x, max_flow_x, min_flow_y, max_flow_y)
 
-        uv_ = uv.data.detach().clone()
-        uv_[1, mask.bool()] = 1 - uv_[1, mask.bool()]
-        min_uv_x, min_uv_y = uv_[0, mask.bool()].min(), uv_[1, mask.bool()].min()
-        max_uv_x, max_uv_y = uv_[0, mask.bool()].max(), uv_[1, mask.bool()].max()
+        uv[1, mask.bool()] = 1 - uv[1, mask.bool()]
+        min_uv_x, min_uv_y = uv[0, mask.bool()].min(), uv[1, mask.bool()].min()
+        max_uv_x, max_uv_y = uv[0, mask.bool()].max(), uv[1, mask.bool()].max()
         print(min_uv_x, max_uv_x, min_uv_y, max_uv_y)
 
         # transforming backward mapping so that it works for crop (288)
@@ -232,14 +231,18 @@ class Doc3D(Dataset):
         axrr[1][1].imshow(flow_[0, ..., 1], cmap="gray")
         axrr[1][1].title.set_text("backward map y")
 
-        uv[0] = (uv[0] - min_uv_x) / (max_uv_x - min_uv_x)
-        uv[1] = (uv[1] - min_uv_y) / (max_uv_y - min_uv_y)  # todo how can uv be -4?
+        eps = 1e-4
+        uv_crop = uv.clone()
+        uv_crop[0, mask.bool()] = eps + (uv_crop[0, mask.bool()] - min_uv_x) / (max_uv_x - min_uv_x + 2*eps)
+        uv_crop[1, mask.bool()] = eps + (uv_crop[1, mask.bool()] - min_uv_y) / (max_uv_y - min_uv_y + 2*eps)
+        # todo how can uv be -4?
 
-        bm_manual = torch.from_numpy(fm2bm(uv.permute(1, 2, 0), mask.bool(), 288)).float()
-        axrr[2][0].imshow(np.concatenate((bm_manual / 288, np.ones((288, 288, 1))), axis=-1))
+        # back mapping for crop that will unwarp paper region within crop
+        bm_manual = torch.from_numpy(fm2bm(uv_crop.permute(1, 2, 0), mask.bool(), 288)).float()
+        axrr[2][0].imshow(np.concatenate((bm_manual / 288, np.ones((288, 288, 1))), axis=-1), vmin=-1, vmax=1)
         axrr[2][0].title.set_text("bm")
         # axrr[2][0].imshow(np.concatenate((flow_[0] / 2 + 0.5, torch.ones(448, 448, 1)), axis=-1))
-        bm_manual_ = (bm_manual[None] - 0.5) * 2
+        bm_manual_ = (bm_manual[None] / 288 - 0.5) * 2
         uw_ = F.grid_sample(image[None] / 255, bm_manual_, padding_mode="zeros")
         axrr[2][1].imshow(uw_[0].permute(1, 2, 0))
         axrr[2][1].title.set_text("bm resample")
@@ -275,7 +278,7 @@ class Doc3D(Dataset):
         axrr[3][1].add_patch(rect_patch_uv)
 
         axrr[4][0].title.set_text("uv")
-        axrr[4][0].imshow(np.concatenate((uv.permute(1, 2, 0), zeros), axis=-1))
+        axrr[4][0].imshow(np.concatenate((uv.permute(1, 2, 0), zeros), axis=-1), vmin=-1, vmax=1)
 
         mask_unwarped = F.grid_sample(mask[None][None], bm_manual_, padding_mode="zeros", mode="nearest")
         axrr[4][1].title.set_text("unwarped mask")
