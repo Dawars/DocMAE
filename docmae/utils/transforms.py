@@ -191,32 +191,37 @@ class RandomResizedCropWithUV(object):
 
         # normalized relative displacement for sampling
         bm_crop_norm = (bm_crop.permute(1, 2, 0) / torch.tensor(orig_size) - 0.5) * 2
-        min_bm_x_norm, min_bm_y_norm = bm_crop_norm[..., 0].min(), bm_crop_norm[..., 1].min()
-        max_bm_x_norm, max_bm_y_norm = bm_crop_norm[..., 0].max(), bm_crop_norm[..., 1].max()
+        min_bm_h_norm, min_bm_w_norm = bm_crop_norm[..., 0].min(), bm_crop_norm[..., 1].min()
+        max_bm_h_norm, max_bm_w_norm = bm_crop_norm[..., 0].max(), bm_crop_norm[..., 1].max()
 
         print(bm_crop_norm[..., 0].min().item(), bm_crop_norm[..., 0].max().item(), bm_crop_norm[..., 1].min().item(), bm_crop_norm[..., 1].max().item())
 
-        # todo -0.5 *2
-        bm_crop_norm[..., 0] = (bm_crop_norm[..., 0] - (1 + min_bm_x_norm))
-        bm_crop_norm[..., 1] = (bm_crop_norm[..., 1] - (1 + min_bm_y_norm))
+        bm_crop_norm[..., 0] = (bm_crop_norm[..., 0] - (1 + min_bm_h_norm))  # remove border
+        bm_crop_norm[..., 1] = (bm_crop_norm[..., 1] - (1 + min_bm_w_norm))
 
         print(bm_crop_norm[..., 0].min().item(), bm_crop_norm[..., 0].max().item(), bm_crop_norm[..., 1].min().item(), bm_crop_norm[..., 1].max().item())
 
         # leave left side (-1) the same during scaling
-        bm_crop_norm[..., 0] = ((bm_crop_norm[..., 0] + 1) / (max_bm_x_norm - min_bm_x_norm)) * 2 - 1
-        bm_crop_norm[..., 1] = ((bm_crop_norm[..., 1] + 1) / (max_bm_y_norm - min_bm_y_norm)) * 2 - 1
+        bm_crop_norm[..., 0] = ((bm_crop_norm[..., 0] + 1) / (max_bm_h_norm - min_bm_h_norm)) * 2 - 1  # border less width/height
+        bm_crop_norm[..., 1] = ((bm_crop_norm[..., 1] + 1) / (max_bm_w_norm - min_bm_w_norm)) * 2 - 1
 
         print(bm_crop_norm[..., 0].min().item(), bm_crop_norm[..., 0].max().item(), bm_crop_norm[..., 1].min().item(), bm_crop_norm[..., 1].max().item())
 
         bm_crop_norm = bm_crop_norm.float()[None]
 
-        image_crop_manual = image[:, min_bm_h.long() : max_bm_h.long() + 1, min_bm_w.long() : max_bm_w.long() + 1]
+        # extend crop to include background
+        min_crop_w = min(min_bm_w.long(), params["left"])
+        min_crop_h = min(min_bm_h.long(), params["top"])
+        max_crop_w = max(max_bm_w.long(), params["left"] + params["width"])
+        max_crop_h = max(max_bm_h.long(), params["top"] + params["height"])
+
+        image_crop_manual = image[:, min_crop_h:max_crop_h + 1, min_crop_w:max_crop_w + 1]
         image_crop_manual = functional.resize(image_crop_manual[None], self.size, interpolation=self.interpolation)[0]
 
-        mask_crop_manual = mask[min_bm_h.long() : max_bm_h.long() + 1, min_bm_w.long() : max_bm_w.long() + 1]
+        mask_crop_manual = mask[min_crop_h:max_crop_h + 1, min_crop_w: max_crop_w + 1]
         mask_crop_manual = functional.resize(mask_crop_manual[None], self.size, interpolation=self.interpolation)[0]
 
-        uv_crop_manual = uv[:, min_bm_h.long() : max_bm_h.long() + 1, min_bm_w.long() : max_bm_w.long() + 1]
+        uv_crop_manual = uv[:,  min_crop_h : max_crop_h + 1, min_crop_w : max_crop_w + 1]
         uv_crop_manual = functional.resize(uv_crop_manual[None], self.size, interpolation=self.interpolation)[0].permute(1, 2, 0)
 
         zeros = torch.ones((448, 448, 1))
@@ -249,6 +254,10 @@ class RandomResizedCropWithUV(object):
             (min_bm_w, min_bm_h), max_bm_w - min_bm_w, max_bm_h - min_bm_h, linewidth=1, edgecolor="r", facecolor="none"
         )
         axrr[0][0].add_patch(rect_patch)
+        rect_patch_crop = patches.Rectangle(
+            (min_crop_w, min_crop_h), max_crop_w - min_crop_w, max_crop_h - min_crop_h, linewidth=1, edgecolor="b", facecolor="none"
+        )
+        axrr[0][0].add_patch(rect_patch_crop)
         rect_patch_uv = patches.Rectangle(
             (min_uv_w, min_uv_h), (max_uv_w - min_uv_w), (max_uv_h - min_uv_h), linewidth=1, edgecolor="g", facecolor="none"
         )
