@@ -172,21 +172,21 @@ class RandomResizedCropWithUV(object):
 
         # flip uv Y
         uv_crop[1, mask_crop.bool()] = 1 - uv_crop[1, mask_crop.bool()]
-        min_uv_x, min_uv_y = uv_crop[0, mask_crop.bool()].min(), uv_crop[1, mask_crop.bool()].min()
-        max_uv_x, max_uv_y = uv_crop[0, mask_crop.bool()].max(), uv_crop[1, mask_crop.bool()].max()
+        min_uv_w, min_uv_h = uv_crop[0, mask_crop.bool()].min(), uv_crop[1, mask_crop.bool()].min()
+        max_uv_w, max_uv_h = uv_crop[0, mask_crop.bool()].max(), uv_crop[1, mask_crop.bool()].max()
 
-        min_uv_x = min_uv_x * orig_size[0]
-        max_uv_x = max_uv_x * orig_size[0]
-        min_uv_y = min_uv_y * orig_size[1]
-        max_uv_y = max_uv_y * orig_size[1]
+        min_uv_h = min_uv_h * orig_size[0]
+        max_uv_h = max_uv_h * orig_size[0]
+        min_uv_w = min_uv_w * orig_size[1]
+        max_uv_w = max_uv_w * orig_size[1]
 
         eps = 1e-4
-        # uv_crop[0, mask.bool()] = eps + (uv_crop[0, mask.bool()] - min_uv_x) / (max_uv_x - min_uv_x + 2 * eps)
-        # uv_crop[1, mask.bool()] = eps + (uv_crop[1, mask.bool()] - min_uv_y) / (max_uv_y - min_uv_y + 2 * eps)
+        # uv_crop[0, mask.bool()] = eps + (uv_crop[0, mask.bool()] - min_uv_h) / (max_uv_h - min_uv_h + 2 * eps)
+        # uv_crop[1, mask.bool()] = eps + (uv_crop[1, mask.bool()] - min_uv_w) / (max_uv_w - min_uv_w + 2 * eps)
 
-        bm_crop = bm[:, min_uv_y.long() : max_uv_y.long() + 1, min_uv_x.long() : max_uv_x.long() + 1]
-        min_bm_x, min_bm_y = bm_crop[0].min(), bm_crop[1].min()
-        max_bm_x, max_bm_y = bm_crop[0].max(), bm_crop[1].max()
+        bm_crop = bm[:, min_uv_h.long() : max_uv_h.long() + 1, min_uv_w.long() : max_uv_w.long() + 1]
+        min_bm_w, min_bm_h = bm_crop[0].min(), bm_crop[1].min()
+        max_bm_w, max_bm_h = bm_crop[0].max(), bm_crop[1].max()
         bm_crop = functional.resize(bm_crop[None], self.size, interpolation=InterpolationMode.NEAREST)[0]
 
         # normalized relative displacement for sampling
@@ -210,13 +210,13 @@ class RandomResizedCropWithUV(object):
 
         bm_crop_norm = bm_crop_norm.float()[None]
 
-        image_crop_manual = image[:, min_bm_y.long() : max_bm_y.long() + 1, min_bm_x.long() : max_bm_x.long() + 1]
+        image_crop_manual = image[:, min_bm_h.long() : max_bm_h.long() + 1, min_bm_w.long() : max_bm_w.long() + 1]
         image_crop_manual = functional.resize(image_crop_manual[None], self.size, interpolation=self.interpolation)[0]
 
-        mask_crop_manual = mask[min_bm_y.long() : max_bm_y.long() + 1, min_bm_x.long() : max_bm_x.long() + 1]
+        mask_crop_manual = mask[min_bm_h.long() : max_bm_h.long() + 1, min_bm_w.long() : max_bm_w.long() + 1]
         mask_crop_manual = functional.resize(mask_crop_manual[None], self.size, interpolation=self.interpolation)[0]
 
-        uv_crop_manual = uv[:, min_bm_y.long() : max_bm_y.long() + 1, min_bm_x.long() : max_bm_x.long() + 1]
+        uv_crop_manual = uv[:, min_bm_h.long() : max_bm_h.long() + 1, min_bm_w.long() : max_bm_w.long() + 1]
         uv_crop_manual = functional.resize(uv_crop_manual[None], self.size, interpolation=self.interpolation)[0].permute(1, 2, 0)
 
         zeros = torch.ones((448, 448, 1))
@@ -246,11 +246,11 @@ class RandomResizedCropWithUV(object):
         axrr[0][4].title.set_text("unwarped full doc")
 
         rect_patch = patches.Rectangle(
-            (min_bm_x, min_bm_y), max_bm_x - min_bm_x, max_bm_y - min_bm_y, linewidth=1, edgecolor="r", facecolor="none"
+            (min_bm_w, min_bm_h), max_bm_w - min_bm_w, max_bm_h - min_bm_h, linewidth=1, edgecolor="r", facecolor="none"
         )
         axrr[0][0].add_patch(rect_patch)
         rect_patch_uv = patches.Rectangle(
-            (min_uv_x, min_uv_y), (max_uv_x - min_uv_x), (max_uv_y - min_uv_y), linewidth=1, edgecolor="g", facecolor="none"
+            (min_uv_w, min_uv_h), (max_uv_w - min_uv_w), (max_uv_h - min_uv_h), linewidth=1, edgecolor="g", facecolor="none"
         )
         axrr[0][4].add_patch(rect_patch_uv)
 
