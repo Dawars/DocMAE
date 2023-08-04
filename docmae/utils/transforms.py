@@ -158,12 +158,10 @@ class RandomResizedCropWithUV(object):
         image_crop = TF.resized_crop(
             image[None], **params, size=self.size, interpolation=self.interpolation, antialias=self.antialias
         )[0]
-        # uv_crop = TF.resized_crop(uv, **params, size=self.size, interpolation=InterpolationMode.NEAREST_EXACT, antialias=False)
-        uv_crop = uv[:, params["top"]: params["top"] + params["height"], params["top"]: params["left"] + params["width"]]
-        mask_crop = mask[params["top"]: params["top"] + params["height"], params["top"]: params["left"] + params["width"]]
-        # mask_crop = TF.resized_crop(
-        #     mask[None], **params, size=self.size, interpolation=InterpolationMode.NEAREST_EXACT, antialias=False
-        # )[0]
+        uv_crop = TF.resized_crop(uv, **params, size=self.size, interpolation=InterpolationMode.NEAREST_EXACT, antialias=False)
+        mask_crop = TF.resized_crop(
+            mask[None], **params, size=self.size, interpolation=InterpolationMode.NEAREST_EXACT, antialias=False
+        )[0]
 
         # doesn't make sense, this is in unwarped space
         # bm_crop = TF.resized_crop(
