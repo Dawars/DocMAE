@@ -173,6 +173,12 @@ class RandomResizedCropWithUV(object):
         min_uv_w, min_uv_h = uv_crop[0, mask_crop.bool()].min(), uv_crop[1, mask_crop.bool()].min()
         max_uv_w, max_uv_h = uv_crop[0, mask_crop.bool()].max(), uv_crop[1, mask_crop.bool()].max()
 
+        # normalize uv for shifting normalized bm in crop
+        min_uv_h_norm = (min_uv_h - 0.5) * 2
+        max_uv_h_norm = (max_uv_h - 0.5) * 2
+        min_uv_w_norm = (min_uv_w - 0.5) * 2
+        max_uv_w_norm = (max_uv_w - 0.5) * 2
+
         min_uv_h = min_uv_h * orig_size[0]
         max_uv_h = max_uv_h * orig_size[0]
         min_uv_w = min_uv_w * orig_size[1]
@@ -194,14 +200,14 @@ class RandomResizedCropWithUV(object):
 
         print(bm_crop_norm[..., 0].min().item(), bm_crop_norm[..., 0].max().item(), bm_crop_norm[..., 1].min().item(), bm_crop_norm[..., 1].max().item())
 
-        bm_crop_norm[..., 0] = (bm_crop_norm[..., 0] - (1 + min_bm_h_norm))  # remove border
-        bm_crop_norm[..., 1] = (bm_crop_norm[..., 1] - (1 + min_bm_w_norm))
+        # bm_crop_norm[..., 0] = (bm_crop_norm[..., 0] - (1 + min_uv_h_norm))  # remove border
+        bm_crop_norm[..., 1] = (bm_crop_norm[..., 1] - (1 + min_uv_w_norm))
 
         print(bm_crop_norm[..., 0].min().item(), bm_crop_norm[..., 0].max().item(), bm_crop_norm[..., 1].min().item(), bm_crop_norm[..., 1].max().item())
 
         # leave left side (-1) the same during scaling
-        bm_crop_norm[..., 0] = ((bm_crop_norm[..., 0] + 1) / (max_bm_h_norm - min_bm_h_norm)) * 2 - 1  # border less width/height
-        bm_crop_norm[..., 1] = ((bm_crop_norm[..., 1] + 1) / (max_bm_w_norm - min_bm_w_norm)) * 2 - 1
+        # bm_crop_norm[..., 0] = ((bm_crop_norm[..., 0] + 1) / (max_uv_h_norm - min_uv_h_norm)) * 2 - 1  # border less width/height
+        bm_crop_norm[..., 1] = ((bm_crop_norm[..., 1] + 1) / (max_uv_w_norm - min_uv_w_norm)) * 2 - 1
 
         print(bm_crop_norm[..., 0].min().item(), bm_crop_norm[..., 0].max().item(), bm_crop_norm[..., 1].min().item(), bm_crop_norm[..., 1].max().item())
 
