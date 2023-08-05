@@ -163,21 +163,10 @@ class RandomResizedCropWithUV(object):
             mask[None], **params, size=self.size, interpolation=InterpolationMode.NEAREST_EXACT, antialias=False
         )[0]
 
-        # doesn't make sense, this is in unwarped space
-        # bm_crop = TF.resized_crop(
-        #     bm[None], **params, size=self.size, interpolation=InterpolationMode.NEAREST_EXACT, antialias=False
-        # )[0]
-
         # flip uv Y
         uv_crop[1, mask_crop.bool()] = 1 - uv_crop[1, mask_crop.bool()]
         min_uv_w, min_uv_h = uv_crop[0, mask_crop.bool()].min(), uv_crop[1, mask_crop.bool()].min()
         max_uv_w, max_uv_h = uv_crop[0, mask_crop.bool()].max(), uv_crop[1, mask_crop.bool()].max()
-
-        # normalize uv for shifting normalized bm in crop
-        min_uv_h_norm = (min_uv_h - 0.5) * 2
-        max_uv_h_norm = (max_uv_h - 0.5) * 2
-        min_uv_w_norm = (min_uv_w - 0.5) * 2
-        max_uv_w_norm = (max_uv_w - 0.5) * 2
 
         min_uv_h = min_uv_h * orig_size[0]
         max_uv_h = max_uv_h * orig_size[0]
@@ -195,29 +184,22 @@ class RandomResizedCropWithUV(object):
 
         # normalized relative displacement for sampling
         bm_crop_norm = (bm_crop.permute(1, 2, 0) / torch.tensor(orig_size) - 0.5) * 2
+        # extend crop to include background
+        min_crop_w = params["left"]
+        min_crop_h = params["top"]
+        max_crop_w = params["left"] + params["width"]
+        max_crop_h = params["top"] + params["height"]
+
+        # remove top left border
+        bm_crop_norm[..., 1] = (bm_crop_norm[..., 1] - (min_crop_h / orig_size[1]) * 2)  # h
+        bm_crop_norm[..., 0] = (bm_crop_norm[..., 0] - (min_crop_w / orig_size[0]) * 2)  # w
+
         min_bm_h_norm, min_bm_w_norm = bm_crop_norm[..., 0].min(), bm_crop_norm[..., 1].min()
-        max_bm_h_norm, max_bm_w_norm = bm_crop_norm[..., 0].max(), bm_crop_norm[..., 1].max()
-
-        print(bm_crop_norm[..., 0].min().item(), bm_crop_norm[..., 0].max().item(), bm_crop_norm[..., 1].min().item(), bm_crop_norm[..., 1].max().item())
-
-        # bm_crop_norm[..., 0] = (bm_crop_norm[..., 0] - (1 + min_uv_h_norm))  # remove border
-        bm_crop_norm[..., 1] = (bm_crop_norm[..., 1] - (1 + min_uv_w_norm))
-
-        print(bm_crop_norm[..., 0].min().item(), bm_crop_norm[..., 0].max().item(), bm_crop_norm[..., 1].min().item(), bm_crop_norm[..., 1].max().item())
-
-        # leave left side (-1) the same during scaling
-        # bm_crop_norm[..., 0] = ((bm_crop_norm[..., 0] + 1) / (max_uv_h_norm - min_uv_h_norm)) * 2 - 1  # border less width/height
-        bm_crop_norm[..., 1] = ((bm_crop_norm[..., 1] + 1) / (max_uv_w_norm - min_uv_w_norm)) * 2 - 1
-
-        print(bm_crop_norm[..., 0].min().item(), bm_crop_norm[..., 0].max().item(), bm_crop_norm[..., 1].min().item(), bm_crop_norm[..., 1].max().item())
+        # divide by (normalized) page size
+        bm_crop_norm[..., 1] = ((bm_crop_norm[..., 1] - min_bm_w_norm) * orig_size[1] / (max_crop_w - min_crop_w)) + min_bm_w_norm
+        bm_crop_norm[..., 0] = ((bm_crop_norm[..., 0] - min_bm_h_norm) * orig_size[0] / (max_crop_h - min_crop_h)) + min_bm_h_norm # border less width/height
 
         bm_crop_norm = bm_crop_norm.float()[None]
-
-        # extend crop to include background
-        min_crop_w = min(min_bm_w.long(), params["left"])
-        min_crop_h = min(min_bm_h.long(), params["top"])
-        max_crop_w = max(max_bm_w.long(), params["left"] + params["width"])
-        max_crop_h = max(max_bm_h.long(), params["top"] + params["height"])
 
         image_crop_manual = image[:, min_crop_h:max_crop_h + 1, min_crop_w:max_crop_w + 1]
         image_crop_manual = functional.resize(image_crop_manual[None], self.size, interpolation=self.interpolation)[0]
