@@ -1,6 +1,5 @@
 import math
 import warnings
-from copy import copy
 from typing import Any, cast, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -8,6 +7,7 @@ import torch
 import torch.nn.functional as F
 from matplotlib import pyplot as plt
 from scipy.interpolate import griddata
+from torchvision import datapoints
 from torchvision.transforms import InterpolationMode, functional
 from torchvision.transforms.v2 import functional as TF
 from torchvision.transforms.v2._utils import _setup_size
@@ -154,22 +154,20 @@ class RandomResizedCropWithUV(object):
 
         params = self._get_params([image, bm, uv_mask])
 
+        # test values
         # params = {"top": 14, "left": 39, "height": 419, "width": 331}  # full page crop
         # params = {"top": 200, "left": 0, "height": 201, "width": 446}  # bottom half crop
         # params = {"top": 0, "left": 113, "height": 326, "width": 309}  # top right corner
         # params = {"top": 200, "left": 200, "height": 248, "width": 248}  # bottom right corner
         # params = {"top": 2, "left": 2, "height": 366, "width": 366}  # top left corner
         # params = {"top": 27, "left": 67, "height": 100, "width": 100}  # test
-        #
-        uv, mask = uv_mask[:2], uv_mask[2]
 
         image_crop = TF.resized_crop(
             image[None], **params, size=self.size, interpolation=self.interpolation, antialias=self.antialias
         )[0]
-        uv_crop = TF.resized_crop(uv, **params, size=self.size, interpolation=InterpolationMode.NEAREST_EXACT, antialias=False)
-        mask_crop = TF.resized_crop(
-            mask[None], **params, size=self.size, interpolation=InterpolationMode.NEAREST_EXACT, antialias=False
-        )[0]
+        uv_mask_crop = TF.resized_crop(uv_mask, **params, size=self.size, interpolation=InterpolationMode.NEAREST_EXACT,
+                                       antialias=False)
+        uv_crop, mask_crop = uv_mask_crop[:2], uv_mask_crop[2]
 
         # flip uv Y
         uv_crop[1, mask_crop.bool()] = 1 - uv_crop[1, mask_crop.bool()]
@@ -181,20 +179,16 @@ class RandomResizedCropWithUV(object):
         min_uv_w = min_uv_w * orig_size[1]
         max_uv_w = max_uv_w * orig_size[1]
 
-        eps = 1e-4
-        # uv_crop[0, mask.bool()] = eps + (uv_crop[0, mask.bool()] - min_uv_h) / (max_uv_h - min_uv_h + 2 * eps)
-        # uv_crop[1, mask.bool()] = eps + (uv_crop[1, mask.bool()] - min_uv_w) / (max_uv_w - min_uv_w + 2 * eps)
-
         bm_crop = bm[:, min_uv_h.long() : max_uv_h.long() + 1, min_uv_w.long() : max_uv_w.long() + 1]
-        min_bm_w, min_bm_h = bm_crop[0].min(), bm_crop[1].min()
-        max_bm_w, max_bm_h = bm_crop[0].max(), bm_crop[1].max()
-        bm_crop = functional.resize(bm_crop[None], self.size, interpolation=InterpolationMode.NEAREST)[0]
+        # min_bm_w, min_bm_h = bm_crop[0].min(), bm_crop[1].min()
+        # max_bm_w, max_bm_h = bm_crop[0].max(), bm_crop[1].max()
+        bm_crop = functional.resize(bm_crop[None], self.size, interpolation=self.interpolation)[0]
 
         # normalized relative displacement for sampling
         bm_crop_norm = (bm_crop.permute(1, 2, 0) / torch.tensor(orig_size) - 0.5) * 2
         # extend crop to include background
-        min_crop_w = max(params["left"], 0)  # todo maybe needs max() if paper corner is larger (down right)
-        min_crop_h = max(params["top"], 0)
+        min_crop_w = params["left"]
+        min_crop_h = params["top"]
         max_crop_w = params["left"] + params["width"]
         max_crop_h = params["top"] + params["height"]
 
@@ -203,35 +197,27 @@ class RandomResizedCropWithUV(object):
         center_y = min_crop_h + (max_crop_h - min_crop_h) / 2
         center_x_norm = 2 * center_x / orig_size[1] - 1
         center_y_norm = 2 * center_y / orig_size[0] - 1
-        print(center_x, center_y)
-        print(center_x_norm, center_y_norm)
 
         bm_crop_norm[..., 1] = (bm_crop_norm[..., 1] - center_y_norm)  # h
         bm_crop_norm[..., 0] = (bm_crop_norm[..., 0] - center_x_norm)  # w
 
-        # remove top left border
-        # bm_crop_norm[..., 1] = (bm_crop_norm[..., 1] - (min_crop_h / orig_size[1]) * 2)  # h
-        # bm_crop_norm[..., 0] = (bm_crop_norm[..., 0] - (min_crop_w / orig_size[0]) * 2)  # w
-        # todo it's because of  bottom right corner (different side to divide), relative scale changes when cropped
-        min_bm_h_norm, min_bm_w_norm = bm_crop_norm[..., 0].min(), bm_crop_norm[..., 1].min()
-        # divide by (normalized) page size
+        # rescale to [-1, 1] for crop
         bm_crop_norm[..., 1] = ((bm_crop_norm[..., 1]) * orig_size[1] / (max_crop_h - min_crop_h))
-        bm_crop_norm[..., 0] = ((bm_crop_norm[..., 0]) * orig_size[0] / (max_crop_w - min_crop_w))# border less width/height
+        bm_crop_norm[..., 0] = ((bm_crop_norm[..., 0]) * orig_size[0] / (max_crop_w - min_crop_w))
 
+        """
         bm_crop_norm = bm_crop_norm.float()[None]
 
         image_crop_manual = image[:, min_crop_h:max_crop_h + 1, min_crop_w:max_crop_w + 1]
         image_crop_manual = functional.resize(image_crop_manual[None], self.size, interpolation=self.interpolation)[0]
 
-        mask_crop_manual = mask[min_crop_h:max_crop_h + 1, min_crop_w: max_crop_w + 1]
-        mask_crop_manual = functional.resize(mask_crop_manual[None], self.size, interpolation=self.interpolation)[0]
-
-        uv_crop_manual = uv[:,  min_crop_h : max_crop_h + 1, min_crop_w : max_crop_w + 1]
-        uv_crop_manual = functional.resize(uv_crop_manual[None], self.size, interpolation=self.interpolation)[0].permute(1, 2, 0)
+        mask_crop_manual = uv_mask[2, min_crop_h:max_crop_h + 1, min_crop_w: max_crop_w + 1]
+        mask_crop_manual = functional.resize(mask_crop_manual[None], self.size, interpolation=InterpolationMode.NEAREST_EXACT)[0]
 
         zeros = torch.ones((448, 448, 1))
 
         import matplotlib.patches as patches
+        from copy import copy
 
         f, axrr = plt.subplots(3, 5)
         for ax in axrr:
@@ -248,26 +234,20 @@ class RandomResizedCropWithUV(object):
         axrr[0][0].title.set_text("full image")
         axrr[0][0].scatter((center_x), (center_y), c="b", s=1)
         axrr[0][0].scatter((((center_x_norm + 1)/2)*orig_size[1]), (((center_y_norm+1)/2)*orig_size[0]), c="r", s=1)
-        axrr[0][1].imshow(mask, cmap="gray")
+        axrr[0][1].imshow(uv_mask[2], cmap="gray")
         axrr[0][1].title.set_text("mask")
-        axrr[0][2].imshow(torch.cat([uv.permute(1, 2, 0), zeros], dim=-1))
+        axrr[0][2].imshow(torch.cat([uv_mask[:2].permute(1, 2, 0), zeros], dim=-1))
         axrr[0][2].title.set_text("uv")
         axrr[0][3].imshow(torch.cat([bm_norm[0] * 0.5 + 0.5, zeros], dim=-1), cmap="gray")
         axrr[0][3].title.set_text("bm")
         axrr[0][4].imshow(F.grid_sample(image[None] / 255, bm_norm)[0].permute(1, 2, 0))
         axrr[0][4].title.set_text("unwarped full doc")
 
-        rect_patch = patches.Rectangle(
-            (min_bm_w, min_bm_h), max_bm_w - min_bm_w, max_bm_h - min_bm_h, linewidth=1, edgecolor="r", facecolor="none"
-        )
         rect_patch_crop = patches.Rectangle(
             (min_crop_w, min_crop_h), max_crop_w - min_crop_w, max_crop_h - min_crop_h, linewidth=1, edgecolor="b", facecolor="none"
         )
-        axrr[0][0].add_patch(copy(rect_patch))
         axrr[0][0].add_patch(copy(rect_patch_crop))
-        axrr[0][1].add_patch(copy(rect_patch))
         axrr[0][1].add_patch(copy(rect_patch_crop))
-        axrr[0][2].add_patch(copy(rect_patch))
         axrr[0][2].add_patch(copy(rect_patch_crop))
         rect_patch_uv = patches.Rectangle(
             (min_uv_w, min_uv_h), (max_uv_w - min_uv_w), (max_uv_h - min_uv_h), linewidth=1, edgecolor="g", facecolor="none"
@@ -283,7 +263,6 @@ class RandomResizedCropWithUV(object):
         axrr[1][1].title.set_text("mask crop")
         axrr[1][2].imshow(torch.cat([uv_crop.permute(1, 2, 0), zeros], dim=-1))
         axrr[1][2].title.set_text("uv crop")
-        # axrr[1][3].imshow(torch.cat([bm_crop_norm[0] * 0.5 + 0.5, torch.ones_like(bm_crop_norm)[0, ..., 0:1]], dim=-1), cmap="gray")
         axrr[1][3].title.set_text("bm crop manual")
         axrr[1][4].imshow(F.grid_sample(image[None] / 255, (bm_crop.permute(1, 2, 0).float() / torch.tensor(orig_size) - 0.5)[None] * 2)[0].permute(1, 2, 0))
         axrr[1][4].title.set_text("unwarped crop from orig")
@@ -292,9 +271,7 @@ class RandomResizedCropWithUV(object):
         axrr[2][0].title.set_text("image crop manual")
         axrr[2][1].imshow(mask_crop_manual, cmap="gray")
         axrr[2][1].title.set_text("crop mask manual")
-        # axrr[2][2].imshow(torch.cat([uv_crop_manual, torch.ones_like(uv_crop_manual)[..., 0:1]], dim=-1))
-        # axrr[2][2].title.set_text("uv crop manual from bm minmax")
-        axrr[2][2].imshow(F.grid_sample(mask_crop_manual[None][None] / 255, bm_crop_norm)[0].permute(1, 2, 0), cmap="gray")
+        axrr[2][2].imshow(F.grid_sample(mask_crop_manual[None][None] / 255, bm_crop_norm, mode="nearest")[0].permute(1, 2, 0), cmap="gray")
         axrr[2][2].title.set_text("mask unwarped manual")
         axrr[2][3].imshow(torch.cat([bm_crop_norm[0] * 0.5 + 0.5, torch.ones_like(bm_crop_norm)[0, ..., 0:1]], dim=-1), cmap="gray")
         axrr[2][3].title.set_text("bm crop manual")
@@ -303,7 +280,5 @@ class RandomResizedCropWithUV(object):
 
         plt.tight_layout()
         plt.show()
-
-        # bm = F.resized_crop(bm, **params, size=self.size, interpolation=InterpolationMode.NEAREST, antialias=self.antialias)
-        # image = F.resized_crop(image, **params, size=self.size, interpolation=self.interpolation, antialias=self.antialias)
-        return image_crop, bm_crop.float(), mask[None]
+        """
+        return datapoints.Image(image_crop), datapoints.Image(bm_crop.float()), datapoints.Mask(uv_mask)
