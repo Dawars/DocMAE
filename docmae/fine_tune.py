@@ -12,15 +12,13 @@ from lightning.pytorch.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
 import torchvision.transforms.v2 as transforms
 
-from transformers import (
-    ViTMAEConfig,
-    AutoImageProcessor,
-)
+from transformers import ViTMAEConfig
 from transformers.models.vit_mae.modeling_vit_mae import ViTMAEDecoder, ViTMAEModel
 
 from docmae.models.docmae import DocMAE
 
 from docmae import setup_logging
+from docmae.utils.transforms import RandomResizedCropWithUV
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +43,8 @@ def parse_arguments():
 def train(args, config: dict):
     train_transform = transforms.Compose(
         [
-            # transforms.Resize((288, 288), antialias=True),
-            transforms.RandomResizedCrop((288, 288), scale=(0.1, 0.5), antialias=True, interpolation=0),  # todo NEAREST fixes uv edge
+            # transforms.RandomRotation((-10, 10)),
+            RandomResizedCropWithUV((288, 288), scale=(0.08, 1.0), antialias=True),
             transforms.ToImageTensor(),
             transforms.ToDtype(torch.float32),
         ]
