@@ -1,3 +1,4 @@
+import logging
 import math
 import warnings
 from typing import Any, cast, Dict, List, Optional, Sequence, Tuple, Union
@@ -13,6 +14,8 @@ from torchvision.transforms.v2 import functional as TF
 from torchvision.transforms.v2._utils import _setup_size
 from torchvision.transforms.v2.functional._geometry import _check_interpolation
 from torchvision.transforms.v2.utils import query_spatial_size
+
+logger = logging.getLogger(__name__)
 
 
 def fm2bm(fm, msk, s):
@@ -151,9 +154,17 @@ class RandomResizedCropWithUV(object):
     def __call__(self, sample) -> Any:
         image, bm, uv_mask = sample
         orig_size = image.shape[1:]
-
-        params = self._get_params([image, bm, uv_mask])
-
+        crop = True
+        while crop:
+            params = self._get_params([image, bm, uv_mask])
+            uv_mask_crop = TF.resized_crop(
+                uv_mask, **params, size=self.size, interpolation=InterpolationMode.NEAREST_EXACT, antialias=False
+            )
+            # more than half of the image is filled
+            if uv_mask_crop[2].sum() > 0.3 * torch.numel(uv_mask_crop[2]):
+                crop = False
+            else:
+                logging.warning("Crop contains little content, recropping")
         # test values
         # params = {"top": 14, "left": 39, "height": 419, "width": 331}  # full page crop
         # params = {"top": 200, "left": 0, "height": 201, "width": 446}  # bottom half crop
@@ -165,8 +176,7 @@ class RandomResizedCropWithUV(object):
         image_crop = TF.resized_crop(
             image[None], **params, size=self.size, interpolation=self.interpolation, antialias=self.antialias
         )[0]
-        uv_mask_crop = TF.resized_crop(uv_mask, **params, size=self.size, interpolation=InterpolationMode.NEAREST_EXACT,
-                                       antialias=False)
+
         uv_crop, mask_crop = uv_mask_crop[:2], uv_mask_crop[2]
 
         # flip uv Y
