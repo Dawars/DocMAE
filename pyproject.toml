@@ -48,6 +48,7 @@ build-backend = "poetry.core.masonry.api"
 
 # optional scripts
 [tool.poetry.scripts]
+docmae-train = "docmae.train:main"
 docmae-pretrain = "docmae.pretrain_pl:main"
 docmae-finetune = "docmae.fine_tune:main"
 

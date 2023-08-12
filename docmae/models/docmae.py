@@ -8,85 +8,9 @@ from torch.utils.tensorboard import SummaryWriter
 from torchvision.transforms import transforms
 from transformers.models.vit_mae.modeling_vit_mae import ViTMAEDecoder, ViTMAEModel
 
-from docmae.models.modules import expansion_block
+from docmae.models.upscale import UpscaleRAFT, UpscaleTransposeConv, UpscaleInterpolate, coords_grid
 
 PATCH_SIZE = 16
-
-
-def coords_grid(batch, ht, wd):
-    coords = torch.meshgrid(torch.arange(ht), torch.arange(wd))
-    coords = torch.stack(coords[::-1], dim=0).float()
-    return coords[None].repeat(batch, 1, 1, 1)
-
-
-# Flow related code taken from https://github.com/fh2019ustc/DocTr/blob/main/GeoTr.py
-class UpscaleRAFT(nn.Module):
-    """
-    Infers conv mask to upscale flow
-    """
-
-    def __init__(self, input_dim=512, hidden_dim=256):
-        super(UpscaleRAFT, self).__init__()
-        self.P = PATCH_SIZE
-
-        self.conv1 = nn.Conv2d(input_dim, hidden_dim, 3, padding=1)
-        self.conv2 = nn.Conv2d(hidden_dim, 2, 3, padding=1)
-        self.relu = nn.ReLU(inplace=True)
-
-        self.mask = nn.Sequential(
-            nn.Conv2d(input_dim, 256, 3, padding=1), nn.ReLU(inplace=True), nn.Conv2d(256, PATCH_SIZE**2 * 9, 1, padding=0)
-        )
-
-    def upsample_flow(self, flow, mask):
-        N, _, H, W = flow.shape
-        mask = mask.view(N, 1, 9, self.P, self.P, H, W)
-        mask = torch.softmax(mask, dim=2)
-
-        up_flow = F.unfold(self.P * flow, (3, 3), padding=1)
-        up_flow = up_flow.view(N, 2, 9, 1, 1, H, W)
-
-        up_flow = torch.sum(mask * up_flow, dim=2)
-        up_flow = up_flow.permute(0, 1, 4, 2, 5, 3)
-
-        return up_flow.reshape(N, 2, self.P * H, self.P * W)
-
-    def forward(self, imgf):
-        mask = 0.25 * self.mask(imgf)  # scale mask to balance gradients
-        flow = self.conv2(self.relu(self.conv1(imgf)))
-        upflow = self.upsample_flow(flow, mask)
-        return upflow
-
-
-class UpscaleTransposeConv(nn.Module):
-    def __init__(self, input_dim=512, hidden_dim=256, mode="bilinear"):
-        super().__init__()
-        self.layers = [
-            expansion_block(input_dim, hidden_dim, hidden_dim // 2),
-            expansion_block(hidden_dim // 2, hidden_dim // 4, hidden_dim // 8),
-            expansion_block(hidden_dim // 8, hidden_dim // 16, 2, relu=False),
-
-            nn.Upsample(scale_factor=2, mode=mode),
-        ]
-
-        self.layers = nn.Sequential(*self.layers)
-
-    def forward(self, imgf):
-        return self.layers(imgf)
-
-
-class UpscaleInterpolate(nn.Module):
-    def __init__(self, input_dim=512, hidden_dim=256, mode="bilinear"):
-        super().__init__()
-        self.mode = mode
-        self.conv1 = nn.Conv2d(input_dim, hidden_dim, 3, padding=1)
-        self.conv2 = nn.Conv2d(hidden_dim, 2, 3, padding=1)
-        self.relu = nn.ReLU(inplace=True)
-
-    def forward(self, imgf):
-        flow = self.conv2(self.relu(self.conv1(imgf)))
-
-        new_size = (16 * flow.shape[2], 16 * flow.shape[3])
-        return 16 * F.interpolate(flow, size=new_size, mode=self.mode, align_corners=True)
 
 
 class DocMAE(L.LightningModule):
