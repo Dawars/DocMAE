@@ -291,4 +291,4 @@ class RandomResizedCropWithUV(object):
         plt.tight_layout()
         plt.show()
         """
-        return datapoints.Image(image_crop), datapoints.Image(bm_crop.float()), datapoints.Mask(uv_mask)
+        return datapoints.Image(image_crop), datapoints.Image(bm_crop.float()), datapoints.Mask(uv_mask_crop)
