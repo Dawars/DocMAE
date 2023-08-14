@@ -3,11 +3,9 @@ import math
 import warnings
 from typing import Any, cast, Dict, List, Optional, Sequence, Tuple, Union
 
-import numpy as np
 import torch
 import torch.nn.functional as F
 from matplotlib import pyplot as plt
-from scipy.interpolate import griddata
 from torchvision import datapoints
 from torchvision.transforms import InterpolationMode, functional
 from torchvision.transforms.v2 import functional as TF
@@ -16,25 +14,6 @@ from torchvision.transforms.v2.functional._geometry import _check_interpolation
 from torchvision.transforms.v2.utils import query_spatial_size
 
 logger = logging.getLogger(__name__)
-
-
-def fm2bm(fm, msk, s):
-    """
-    Transforms forward mapping (uv) to backward mapping
-    Source: https://github.com/cvlab-stonybrook/doc3D-dataset/issues/2#issuecomment-533409416
-    fm: the forward mapping in range [0,1]
-    msk: mask bool array
-    s: shape of the image required to sample from, defines the range of image coordinates in
-    """
-    fm = fm.numpy() * s
-
-    s2d = fm[msk]
-    tx, ty = np.where(msk)
-    grid = np.meshgrid(np.linspace(1, s, s), np.linspace(1, s, s))
-    vx = griddata(s2d, tx, tuple(grid), method="linear")
-    vy = griddata(s2d, ty, tuple(grid), method="linear")
-    bm = np.stack([vy, vx], axis=-1)
-    return bm
 
 
 class RandomResizedCropWithUV(object):
@@ -208,12 +187,12 @@ class RandomResizedCropWithUV(object):
         center_x_norm = 2 * center_x / orig_size[1] - 1
         center_y_norm = 2 * center_y / orig_size[0] - 1
 
-        bm_crop_norm[..., 1] = (bm_crop_norm[..., 1] - center_y_norm)  # h
-        bm_crop_norm[..., 0] = (bm_crop_norm[..., 0] - center_x_norm)  # w
+        bm_crop_norm[..., 1] = bm_crop_norm[..., 1] - center_y_norm  # h
+        bm_crop_norm[..., 0] = bm_crop_norm[..., 0] - center_x_norm  # w
 
         # rescale to [-1, 1] for crop
-        bm_crop_norm[..., 1] = ((bm_crop_norm[..., 1]) * orig_size[1] / (max_crop_h - min_crop_h))
-        bm_crop_norm[..., 0] = ((bm_crop_norm[..., 0]) * orig_size[0] / (max_crop_w - min_crop_w))
+        bm_crop_norm[..., 1] = (bm_crop_norm[..., 1]) * orig_size[1] / (max_crop_h - min_crop_h)
+        bm_crop_norm[..., 0] = (bm_crop_norm[..., 0]) * orig_size[0] / (max_crop_w - min_crop_w)
 
         """
         align_corners = False
@@ -259,7 +238,12 @@ class RandomResizedCropWithUV(object):
         axrr[0][4].title.set_text("unwarped full doc")
 
         rect_patch_crop = patches.Rectangle(
-            (min_crop_w, min_crop_h), max_crop_w - min_crop_w, max_crop_h - min_crop_h, linewidth=1, edgecolor="b", facecolor="none"
+            (min_crop_w, min_crop_h),
+            max_crop_w - min_crop_w,
+            max_crop_h - min_crop_h,
+            linewidth=1,
+            edgecolor="b",
+            facecolor="none",
         )
         axrr[0][0].add_patch(copy(rect_patch_crop))
         axrr[0][1].add_patch(copy(rect_patch_crop))
