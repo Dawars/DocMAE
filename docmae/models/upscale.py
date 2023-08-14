@@ -70,7 +70,7 @@ class UpscaleInterpolate(nn.Module):
         flow = self.conv2(self.relu(self.conv1(feature_map)))
 
         new_size = (16 * flow.shape[2], 16 * flow.shape[3])  # to scale 8/16
-        return 16 * F.interpolate(flow, size=new_size, mode=self.mode, align_corners=True)
+        return 16 * F.interpolate(flow, size=new_size, mode=self.mode, align_corners=False)
 
 
 def expansion_block(in_channels, mid_channel, out_channels, relu=True):

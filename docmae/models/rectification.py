@@ -144,7 +144,7 @@ class Rectification(L.LightningModule):
             bm_ = (bm_pred / 288 - 0.5) * 2
             bm_ = bm_.permute((0, 2, 3, 1))
             img_ = image
-            uw = F.grid_sample(img_, bm_)
+            uw = F.grid_sample(img_, bm_, align_corners=False)
 
             self.tb_log.add_images("val/unwarped", uw, global_step=self.global_step)
 

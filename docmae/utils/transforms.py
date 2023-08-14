@@ -192,7 +192,7 @@ class RandomResizedCropWithUV(object):
         bm_crop = bm[:, min_uv_h.long() : max_uv_h.long() + 1, min_uv_w.long() : max_uv_w.long() + 1]
         # min_bm_w, min_bm_h = bm_crop[0].min(), bm_crop[1].min()
         # max_bm_w, max_bm_h = bm_crop[0].max(), bm_crop[1].max()
-        bm_crop = functional.resize(bm_crop[None], self.size, interpolation=self.interpolation)[0]
+        bm_crop = functional.resize(bm_crop[None], self.size, interpolation=self.interpolation, antialias=self.antialias)[0]
 
         # normalized relative displacement for sampling
         bm_crop_norm = (bm_crop.permute(1, 2, 0) / torch.tensor(orig_size) - 0.5) * 2
@@ -216,13 +216,18 @@ class RandomResizedCropWithUV(object):
         bm_crop_norm[..., 0] = ((bm_crop_norm[..., 0]) * orig_size[0] / (max_crop_w - min_crop_w))
 
         """
+        align_corners = False
         bm_crop_norm = bm_crop_norm.float()[None]
 
         image_crop_manual = image[:, min_crop_h:max_crop_h + 1, min_crop_w:max_crop_w + 1]
-        image_crop_manual = functional.resize(image_crop_manual[None], self.size, interpolation=self.interpolation)[0]
+        image_crop_manual = functional.resize(
+            image_crop_manual[None], self.size, interpolation=self.interpolation, antialias=self.antialias
+        )[0]
 
-        mask_crop_manual = uv_mask[2, min_crop_h:max_crop_h + 1, min_crop_w: max_crop_w + 1]
-        mask_crop_manual = functional.resize(mask_crop_manual[None], self.size, interpolation=InterpolationMode.NEAREST_EXACT)[0]
+        mask_crop_manual = uv_mask[2, min_crop_h:max_crop_h + 1, min_crop_w:max_crop_w + 1]
+        mask_crop_manual = functional.resize(
+            mask_crop_manual[None], self.size, interpolation=InterpolationMode.NEAREST_EXACT, antialias=False
+        )[0]
 
         zeros = torch.ones((448, 448, 1))
 
@@ -250,7 +255,7 @@ class RandomResizedCropWithUV(object):
         axrr[0][2].title.set_text("uv")
         axrr[0][3].imshow(torch.cat([bm_norm[0] * 0.5 + 0.5, zeros], dim=-1), cmap="gray")
         axrr[0][3].title.set_text("bm")
-        axrr[0][4].imshow(F.grid_sample(image[None] / 255, bm_norm)[0].permute(1, 2, 0))
+        axrr[0][4].imshow(F.grid_sample(image[None] / 255, bm_norm, align_corners=align_corners)[0].permute(1, 2, 0))
         axrr[0][4].title.set_text("unwarped full doc")
 
         rect_patch_crop = patches.Rectangle(
@@ -274,18 +279,33 @@ class RandomResizedCropWithUV(object):
         axrr[1][2].imshow(torch.cat([uv_crop.permute(1, 2, 0), zeros], dim=-1))
         axrr[1][2].title.set_text("uv crop")
         axrr[1][3].title.set_text("bm crop manual")
-        axrr[1][4].imshow(F.grid_sample(image[None] / 255, (bm_crop.permute(1, 2, 0).float() / torch.tensor(orig_size) - 0.5)[None] * 2)[0].permute(1, 2, 0))
+        axrr[1][4].imshow(
+            F.grid_sample(
+                image[None] / 255,
+                (bm_crop.permute(1, 2, 0).float() / torch.tensor(orig_size) - 0.5)[None] * 2,
+                align_corners=align_corners,
+            )[0].permute(1, 2, 0)
+        )
         axrr[1][4].title.set_text("unwarped crop from orig")
 
         axrr[2][0].imshow(image_crop_manual.permute(1, 2, 0) / 255)
         axrr[2][0].title.set_text("image crop manual")
         axrr[2][1].imshow(mask_crop_manual, cmap="gray")
         axrr[2][1].title.set_text("crop mask manual")
-        axrr[2][2].imshow(F.grid_sample(mask_crop_manual[None][None] / 255, bm_crop_norm, mode="nearest")[0].permute(1, 2, 0), cmap="gray")
+        axrr[2][2].imshow(
+            F.grid_sample(mask_crop_manual[None][None], bm_crop_norm, mode="nearest", align_corners=align_corners)[0].permute(
+                1, 2, 0
+            ),
+            cmap="gray",
+        )
         axrr[2][2].title.set_text("mask unwarped manual")
-        axrr[2][3].imshow(torch.cat([bm_crop_norm[0] * 0.5 + 0.5, torch.ones_like(bm_crop_norm)[0, ..., 0:1]], dim=-1), cmap="gray")
+        axrr[2][3].imshow(
+            torch.cat([bm_crop_norm[0] * 0.5 + 0.5, torch.ones_like(bm_crop_norm)[0, ..., 0:1]], dim=-1).clip(0, 1), cmap="gray"
+        )
         axrr[2][3].title.set_text("bm crop manual")
-        axrr[2][4].imshow(F.grid_sample(image_crop_manual[None] / 255, bm_crop_norm)[0].permute(1, 2, 0))
+        axrr[2][4].imshow(
+            F.grid_sample(image_crop_manual[None] / 255, bm_crop_norm, align_corners=align_corners)[0].permute(1, 2, 0)
+        )
         axrr[2][4].title.set_text("unwarped crop manual")
 
         plt.tight_layout()

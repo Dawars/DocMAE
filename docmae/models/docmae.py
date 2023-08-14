@@ -163,7 +163,7 @@ class DocMAE(L.LightningModule):
             bm_ = viz_flow(flow_pred)
             bm_ = bm_.permute((0, 2, 3, 1))
             img_ = image
-            uw = F.grid_sample(img_, bm_)
+            uw = F.grid_sample(img_, bm_, align_corners=False)
 
             self.tb_log.add_images("val/unwarped", uw, global_step=self.global_step)
 
