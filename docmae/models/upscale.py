@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 
 def coords_grid(batch, ht, wd):
-    coords = torch.meshgrid(torch.arange(ht), torch.arange(wd))
+    coords = torch.meshgrid(torch.arange(ht), torch.arange(wd), indexing="ij")
     coords = torch.stack(coords[::-1], dim=0).float()
     return coords[None].repeat(batch, 1, 1, 1)
 
