@@ -1,0 +1,17 @@
+{
+  "dataset_path": "/home/dawars/datasets/doc3d/",
+  "segmenter_ckpt": "u2netp.pth",
+  "progress_bar": true,
+  "training": {
+    "num_devices": 1,
+    "steps": 500000,
+    "batch_size": 8,
+    "num_workers": 8
+  },
+  "model": {
+    "segment_background": true,
+    "hidden_dim": 256,
+    "num_attn_layers": 6,
+    "upscale_type": "raft"
+  }
+}
