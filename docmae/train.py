@@ -88,10 +88,11 @@ def train(args, config: dict):
         logger=tb_logger,
         callbacks=callback_list,
         accelerator="cuda",
-        devices=config["training"]["num_devices"],
-        max_epochs=config["training"]["epochs"],
+        devices=max(torch.cuda.device_count(), config["training"]["num_devices"]),  # use all gpus if config is -1
+        max_epochs=config["training"].get("epochs", None),
+        max_steps=config["training"].get("steps", -1),
         num_sanity_val_steps=1,
-        enable_progress_bar=True,
+        enable_progress_bar=config["progress_bar"],
     )
 
     model = DocTr(config["model"])
