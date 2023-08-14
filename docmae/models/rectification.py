@@ -3,7 +3,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 from torch.nn import L1Loss
-from torch.optim.lr_scheduler import OneCycleLR, StepLR
+from torch.optim.lr_scheduler import OneCycleLR
 from torch.utils.tensorboard import SummaryWriter
 
 from docmae.models.upscale import UpscaleRAFT, UpscaleTransposeConv, UpscaleInterpolate, coords_grid
@@ -13,20 +13,22 @@ class Rectification(L.LightningModule):
     tb_log: SummaryWriter
 
     def __init__(
-            self,
-            model: nn.Module,
-            hparams,
+        self,
+        model: nn.Module,
+        config,
     ):
         super().__init__()
         self.example_input_array = torch.rand(1, 3, 288, 288)
 
         self.model = model
+        self.config = config
+        hparams = config["model"]
 
         H, W = self.example_input_array.shape[2:]
         self.coodslar = coords_grid(1, H, W).to(self.example_input_array.device)
 
-        self.upscale_type = hparams["model"]["upscale_type"]
-        self.segment_background = hparams["model"]["segment_background"]
+        self.upscale_type = hparams["upscale_type"]
+        self.segment_background = hparams["segment_background"]
         self.hidden_dim = hdim = 256  # todo add model config
         if self.upscale_type == "raft":
             self.upscale_module = UpscaleRAFT(8, self.hidden_dim)  # todo add config hparams
@@ -38,7 +40,7 @@ class Rectification(L.LightningModule):
             raise NotImplementedError
 
         self.loss = L1Loss()
-        self.save_hyperparameters(hparams["model"])
+        self.save_hyperparameters(hparams)
 
     def on_fit_start(self):
         self.tb_log = self.logger.experiment
@@ -54,16 +56,12 @@ class Rectification(L.LightningModule):
             dictionary defining optimizer, learning rate scheduler and value to monitor as expected by pytorch lightning
         """
 
-        optimizer = torch.optim.AdamW(self.parameters(), lr=1e-4)
-        scheduler = StepLR(optimizer, step_size=20, gamma=0.3)
-        return {
-            "optimizer": optimizer,
-            "lr_scheduler_config": {
-                "scheduler": scheduler,
-                "interval": "epoch",
-            },
-            "monitor": "train/loss",
+        optimizer = torch.optim.AdamW(self.parameters())
+        scheduler = {
+            "scheduler": OneCycleLR(optimizer, max_lr=1e-4, pct_start=0.0014, total_steps=self.config["training"]["steps"]),
+            "interval": "step",
         }
+        return [optimizer], [scheduler]
 
     def forward(self, inputs):
         """
