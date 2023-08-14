@@ -111,7 +111,7 @@ def main():
     assert args.config.endswith(".json")
 
     # Save config for training traceability and load config parameters
-    config_file = Path(args.model_output_dir) / "fine_tune_config.json"
+    config_file = Path(args.model_output_dir) / "config.json"
     config = json.loads(Path(args.config).read_text())
     shutil.copyfile(args.config, config_file)
     train(args, config)
