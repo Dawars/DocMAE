@@ -5,6 +5,7 @@ from torch import nn
 from torch.nn import L1Loss
 from torch.optim.lr_scheduler import OneCycleLR
 from torch.utils.tensorboard import SummaryWriter
+from torchvision.utils import flow_to_image
 
 from docmae.models.upscale import UpscaleRAFT, UpscaleTransposeConv, UpscaleInterpolate, coords_grid
 
@@ -82,14 +83,21 @@ class Rectification(L.LightningModule):
         bm_target = batch["bm"] * 288
         batch_size = len(image)
 
-        # training image sanity check
-        if self.global_step == 0:
-            ones = torch.ones((batch_size, 1, 288, 288), device=self.device)
-            self.tb_log.add_images("train/image", image, global_step=self.global_step)
-            self.tb_log.add_images("val/flow", torch.cat((bm_target / 288, ones), dim=1), global_step=self.global_step)
-
         flow_pred = self.forward(image)
         bm_pred = flow_pred + self.coodslar
+
+        # training image sanity check
+        if self.global_step == 0:
+            ones = torch.ones((batch_size, 1, 288, 288))
+            self.tb_log.add_images("train/image", image.detach().cpu(), global_step=self.global_step)
+            self.tb_log.add_images(
+                "train/bm_target", torch.cat((bm_target.detach().cpu() / 288, ones), dim=1), global_step=self.global_step
+            )
+            self.tb_log.add_images(
+                "train/flow_target",
+                flow_to_image(bm_target.detach().cpu() - self.coodslar.detach().cpu()),
+                global_step=self.global_step,
+            )
 
         # log metrics
         loss = self.loss(bm_target, bm_pred)
@@ -128,21 +136,31 @@ class Rectification(L.LightningModule):
 
         self.log("val/loss", loss, on_epoch=True, batch_size=batch_size)
 
-        ones = torch.ones((batch_size, 1, 288, 288), device=self.device)
+        ones = torch.ones((batch_size, 1, 288, 288))
 
         if batch_idx == 0 and self.global_step == 0:
-            self.tb_log.add_images("val/image", image, global_step=self.global_step)
-            self.tb_log.add_images("val/flow", torch.cat((bm_target / 288, ones), dim=1), global_step=self.global_step)
+            self.tb_log.add_images("val/image", image.detach().cpu(), global_step=self.global_step)
+            self.tb_log.add_images(
+                "val/bm", torch.cat((bm_target.detach().cpu() / 288, ones), dim=1), global_step=self.global_step
+            )
+            self.tb_log.add_images(
+                "val/flow",
+                flow_to_image((bm_target.detach().cpu() - self.coodslar.detach().cpu())),
+                global_step=self.global_step,
+            )
 
         if batch_idx == 0:
             self.tb_log.add_images(
-                "val/flow_pred", torch.cat((bm_pred / 288, ones), dim=1), global_step=self.global_step
+                "val/bm_pred", torch.cat((bm_pred.detach().cpu() / 288, ones), dim=1), global_step=self.global_step
             )
+            self.tb_log.add_images("val/flow_pred", flow_to_image(flow_pred.detach().cpu()), global_step=self.global_step)
+
+            self.tb_log.add_images("val/bm_diff", flow_to_image(bm_target.cpu() - bm_pred.cpu()), global_step=self.global_step)
 
             bm_ = (bm_pred / 288 - 0.5) * 2
             bm_ = bm_.permute((0, 2, 3, 1))
             img_ = image
-            uw = F.grid_sample(img_, bm_, align_corners=False)
+            uw = F.grid_sample(img_, bm_, align_corners=False).detach().cpu()
 
             self.tb_log.add_images("val/unwarped", uw, global_step=self.global_step)
 
