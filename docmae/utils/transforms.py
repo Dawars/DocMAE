@@ -133,17 +133,18 @@ class RandomResizedCropWithUV(object):
     def __call__(self, sample) -> Any:
         image, bm, uv_mask = sample
         orig_size = image.shape[1:]
-        crop = True
-        while crop:
-            params = self._get_params([image, bm, uv_mask])
-            uv_mask_crop = TF.resized_crop(
-                uv_mask, **params, size=self.size, interpolation=InterpolationMode.NEAREST_EXACT, antialias=False
-            )
-            # more than half of the image is filled
-            if uv_mask_crop[2].sum() > 0.3 * torch.numel(uv_mask_crop[2]):
-                crop = False
-            else:
-                logging.warning("Crop contains little content, recropping")
+        params = self._get_params([image, bm, uv_mask])
+        # crop = True
+        # while crop:
+        #     params = self._get_params([image, bm, uv_mask])
+        #     uv_mask_crop = TF.resized_crop(
+        #         uv_mask, **params, size=self.size, interpolation=InterpolationMode.NEAREST_EXACT, antialias=False
+        #     )
+        #     # more than half of the image is filled
+        #     if uv_mask_crop[2].sum() > 0.3 * torch.numel(uv_mask_crop[2]):
+        #         crop = False
+        #     else:
+        #         logging.warning("Crop contains little content, recropping")
         # test values
         # params = {"top": 14, "left": 39, "height": 419, "width": 331}  # full page crop
         # params = {"top": 200, "left": 0, "height": 201, "width": 446}  # bottom half crop
@@ -155,6 +156,9 @@ class RandomResizedCropWithUV(object):
         image_crop = TF.resized_crop(
             image[None], **params, size=self.size, interpolation=self.interpolation, antialias=self.antialias
         )[0]
+        uv_mask_crop = TF.resized_crop(
+            uv_mask, **params, size=self.size, interpolation=InterpolationMode.NEAREST_EXACT, antialias=False
+        )  # needed if we use test params
 
         uv_crop, mask_crop = uv_mask_crop[:2], uv_mask_crop[2]
 
