@@ -197,15 +197,15 @@ class DocTr(nn.Module):
         self.num_attn_layers = config["num_attn_layers"]
         self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
-        self.hidden_dim = hdim = 256
+        hdim = config["hidden_dim"]
 
         self.fnet = BasicEncoder(output_dim=hdim, norm_fn="instance")
 
         self.TransEncoder = TransEncoder(self.num_attn_layers, hidden_dim=hdim)
         self.TransDecoder = TransDecoder(self.num_attn_layers, hidden_dim=hdim)
-        self.query_embed = nn.Embedding(1296, self.hidden_dim)
+        self.query_embed = nn.Embedding(1296, hdim)
 
-        self.flow_head = FlowHead(hdim, hidden_dim=256)
+        self.flow_head = FlowHead(hdim, hidden_dim=hdim)
 
     def forward(self, image):
         """
