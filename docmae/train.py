@@ -10,6 +10,11 @@ import lightning as L
 from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint
 from lightning.pytorch.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
+# We are using BETA APIs, so we deactivate the associated warning, thereby acknowledging that
+# some APIs may slightly change in the future
+import torchvision
+torchvision.disable_beta_transforms_warning()
+
 import torchvision.transforms.v2 as transforms
 
 from docmae.data.doc3d import Doc3D
