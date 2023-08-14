@@ -47,8 +47,7 @@ class UpscaleTransposeConv(nn.Module):
         super().__init__()
         self.layers = [
             expansion_block(input_dim, hidden_dim, hidden_dim // 2),
-            expansion_block(hidden_dim // 2, hidden_dim // 4, hidden_dim // 8),
-            expansion_block(hidden_dim // 8, hidden_dim // 16, 2, relu=False),
+            expansion_block(hidden_dim // 2, hidden_dim // 4, 2, relu=False),
             nn.Upsample(scale_factor=2, mode=mode),
         ]
 
@@ -66,11 +65,11 @@ class UpscaleInterpolate(nn.Module):
         self.conv2 = nn.Conv2d(hidden_dim, 2, 3, padding=1)
         self.relu = nn.ReLU(inplace=True)
 
-    def forward(self, feature_map):
+    def forward(self, feature_map, **kwargs):
         flow = self.conv2(self.relu(self.conv1(feature_map)))
 
-        new_size = (16 * flow.shape[2], 16 * flow.shape[3])  # to scale 8/16
-        return 16 * F.interpolate(flow, size=new_size, mode=self.mode, align_corners=False)
+        new_size = (8 * flow.shape[2], 8 * flow.shape[3])  # to scale 8/16
+        return 8 * F.interpolate(flow, size=new_size, mode=self.mode, align_corners=False)
 
 
 def expansion_block(in_channels, mid_channel, out_channels, relu=True):

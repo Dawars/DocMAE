@@ -30,13 +30,13 @@ class Rectification(L.LightningModule):
 
         self.upscale_type = hparams["upscale_type"]
         self.segment_background = hparams["segment_background"]
-        self.hidden_dim = hdim = 256  # todo add model config
+        self.hidden_dim = hparams["hidden_dim"]
         if self.upscale_type == "raft":
-            self.upscale_module = UpscaleRAFT(8, self.hidden_dim)  # todo add config hparams
+            self.upscale_module = UpscaleRAFT(8, self.hidden_dim)
         elif self.upscale_type == "transpose_conv":
-            self.upscale_module = UpscaleTransposeConv(self.hidden_dim)
+            self.upscale_module = UpscaleTransposeConv(self.hidden_dim, self.hidden_dim // 2)
         elif self.upscale_type == "interpolate":
-            self.upscale_module = UpscaleInterpolate()
+            self.upscale_module = UpscaleInterpolate(self.hidden_dim, self.hidden_dim // 2)
         else:
             raise NotImplementedError
 
