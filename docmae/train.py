@@ -97,6 +97,9 @@ def train(args, config: dict):
     model = DocTr(config["model"])
     model = Rectification(model, config)
 
+    # test export
+    print(model.cuda().to_torchscript(method="trace"))
+
     trainer.fit(model, train_loader, val_loader)
 
 
