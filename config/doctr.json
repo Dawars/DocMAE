@@ -6,7 +6,8 @@
     "num_devices": 1,
     "steps": 500000,
     "batch_size": 8,
-    "num_workers": 8
+    "num_workers": 8,
+    "crop": true
   },
   "model": {
     "segment_background": true,

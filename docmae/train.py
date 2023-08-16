@@ -48,8 +48,7 @@ def train(args, config: dict):
     train_transform = transforms.Compose(
         [
             # transforms.RandomRotation((-10, 10)),
-            RandomResizedCropWithUV((288, 288), scale=(0.08, 1.0), antialias=True),
-            # RandomResizedCropWithUV((288, 288), scale=(1.0, 1.0), antialias=True),
+            RandomResizedCropWithUV((288, 288), scale=(0.08, 1.0) if config["training"]["crop"] else (1.0, 1.0), antialias=True),
             transforms.ToImageTensor(),
             transforms.ToDtype(torch.float32),
         ]
