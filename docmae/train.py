@@ -75,10 +75,10 @@ def train(args, config: dict):
         LearningRateMonitor(logging_interval="step"),
         ModelCheckpoint(
             dirpath=args.model_output_dir,
-            filename="epoch_{epoch:d}",
+            filename="epoch_{epoch:02d}",
             monitor="val/loss",
-            mode="max",
-            save_top_k=1,
+            mode="min",
+            save_top_k=2,
         ),
     ]
 

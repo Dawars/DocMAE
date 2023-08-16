@@ -71,8 +71,8 @@ def train(args, config: dict):
             dirpath=args.model_output_dir,
             filename="epoch_{epoch:d}",
             monitor="val/loss",
-            mode="max",
-            save_top_k=1,
+            mode="min",
+            save_top_k=2,
         ),
     ]
 
