@@ -1,3 +1,5 @@
+import numpy as np
+import cv2
 import lightning as L
 import torch
 import torch.nn.functional as F
@@ -5,6 +7,7 @@ from torch import nn
 from torch.nn import L1Loss
 from torch.optim.lr_scheduler import OneCycleLR
 from torch.utils.tensorboard import SummaryWriter
+from torchvision.transforms import transforms
 from torchvision.utils import flow_to_image
 
 from docmae.models.upscale import UpscaleRAFT, UpscaleTransposeConv, UpscaleInterpolate, coords_grid
@@ -164,5 +167,49 @@ class Rectification(L.LightningModule):
 
             self.tb_log.add_images("val/unwarped", uw, global_step=self.global_step)
 
+    def on_predict_start(self):
+        self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+
+        self.segmenter = torch.jit.load(self.config["segmenter_ckpt"], map_location=self.device)
+        self.segmenter = torch.jit.freeze(self.segmenter)
+        self.segmenter = torch.jit.optimize_for_inference(self.segmenter)
+        self.resize = transforms.Resize((288, 288), antialias=True)
+        self.coodslar = self.coodslar.to(self.device)
+
+    def predict_step(self, batch, batch_idx: int, dataloader_idx: int = 0):
+        image_orig = batch["image"]
+        b, c, h, w = image_orig.shape
+        image = self.resize(image_orig)
+        # resize to 288
+        image /= 255
+        if self.segment_background:
+            mask = (self.segmenter(self.normalize(image)) > 0.5).to(torch.bool)
+            image = image * mask
+        else:
+            mask = None
+
+        flow_pred = self.forward(image)
+        bm_pred = self.coodslar + flow_pred  # rescale to original
+
+        bm = (bm_pred / 288 - 0.5) * 2
+
+        # pytorch reimplementation
+        # import kornia
+        # bm = torch.nn.functional.interpolate(bm, image_orig.shape[2:])
+        # bm = kornia.filters.box_blur(bm, 3)
+        # rectified = F.grid_sample(image_orig, bm.permute((0, 2, 3, 1)), align_corners=False, mode="bilinear")
+
+        # doctr implementation
+        bm = bm.cpu()
+        bm0 = cv2.resize(bm[0, 0].numpy(), (w, h))  # x flow
+        bm1 = cv2.resize(bm[0, 1].numpy(), (w, h))  # y flow
+        bm0 = cv2.blur(bm0, (3, 3))
+        bm1 = cv2.blur(bm1, (3, 3))
+        lbl = torch.from_numpy(np.stack([bm0, bm1], axis=2)).to(self.device).unsqueeze(0)  # h * w * 2
+
+        rectified = F.grid_sample(image_orig, lbl, align_corners=True)
+        return rectified, bm, mask
+
     def on_test_start(self):
         self.tb_log = self.logger.experiment
+        self.coodslar = self.coodslar.to(self.device)
