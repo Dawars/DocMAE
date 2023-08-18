@@ -2,6 +2,13 @@ from pathlib import Path
 
 from PIL import Image, ImageOps
 from torch.utils.data import Dataset
+import re
+
+
+def natural_sort(l):
+    convert = lambda text: int(text) if text.isdigit() else text.lower()
+    alphanum_key = lambda key: [convert(c) for c in re.split("([0-9]+)", key)]
+    return sorted(l, key=alphanum_key)
 
 
 class ListDataset(Dataset):
@@ -14,7 +21,8 @@ class ListDataset(Dataset):
         """
 
         self.data_root = data_root
-        self.filenames = (data_root / f"{split}.txt").read_text().split()
+
+        self.filenames = natural_sort((data_root / f"{split}.txt").read_text().split())
 
         self.transforms = transforms
 
