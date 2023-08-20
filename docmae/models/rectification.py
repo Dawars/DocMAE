@@ -83,7 +83,7 @@ class Rectification(L.LightningModule):
         if self.segment_background:
             image = image * batch["mask"][:, 2:3]
 
-        bm_target = batch["bm"] * 288
+        bm_target = batch["bm"] * 287
         batch_size = len(image)
 
         flow_pred = self.forward(image)
@@ -94,7 +94,7 @@ class Rectification(L.LightningModule):
             ones = torch.ones((batch_size, 1, 288, 288))
             self.tb_log.add_images("train/image", image.detach().cpu(), global_step=self.global_step)
             self.tb_log.add_images(
-                "train/bm_target", torch.cat((bm_target.detach().cpu() / 288, ones), dim=1), global_step=self.global_step
+                "train/bm_target", torch.cat((bm_target.detach().cpu() / 287, ones), dim=1), global_step=self.global_step
             )
             self.tb_log.add_images(
                 "train/flow_target",
@@ -125,7 +125,7 @@ class Rectification(L.LightningModule):
         image = val_batch["image"] / 255
         if self.segment_background:
             image = image * val_batch["mask"][:, 2:3]
-        bm_target = val_batch["bm"] * 288
+        bm_target = val_batch["bm"] * 287
         batch_size = len(image)
 
         # training image sanity check
@@ -144,7 +144,7 @@ class Rectification(L.LightningModule):
         if batch_idx == 0 and self.global_step == 0:
             self.tb_log.add_images("val/image", image.detach().cpu(), global_step=self.global_step)
             self.tb_log.add_images(
-                "val/bm", torch.cat((bm_target.detach().cpu() / 288, ones), dim=1), global_step=self.global_step
+                "val/bm", torch.cat((bm_target.detach().cpu() / 287, ones), dim=1), global_step=self.global_step
             )
             self.tb_log.add_images(
                 "val/flow",
@@ -154,13 +154,13 @@ class Rectification(L.LightningModule):
 
         if batch_idx == 0:
             self.tb_log.add_images(
-                "val/bm_pred", torch.cat((bm_pred.detach().cpu() / 288, ones), dim=1), global_step=self.global_step
+                "val/bm_pred", torch.cat((bm_pred.detach().cpu() / 287, ones), dim=1), global_step=self.global_step
             )
             self.tb_log.add_images("val/flow_pred", flow_to_image(flow_pred.detach().cpu()), global_step=self.global_step)
 
             self.tb_log.add_images("val/bm_diff", flow_to_image(bm_target.cpu() - bm_pred.cpu()), global_step=self.global_step)
 
-            bm_ = (bm_pred / 288 - 0.5) * 2
+            bm_ = (bm_pred / 287 - 0.5) * 2
             bm_ = bm_.permute((0, 2, 3, 1))
             img_ = image
             uw = F.grid_sample(img_, bm_, align_corners=False).detach().cpu()
@@ -191,7 +191,7 @@ class Rectification(L.LightningModule):
         flow_pred = self.forward(image)
         bm_pred = self.coodslar + flow_pred  # rescale to original
 
-        bm = (bm_pred / 288 - 0.5) * 2
+        bm = (2 * (bm_pred / 286.8) - 1) * 0.99  # https://github.com/fh2019ustc/DocTr/issues/6
 
         # pytorch reimplementation
         # import kornia

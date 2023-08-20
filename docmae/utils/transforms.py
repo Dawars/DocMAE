@@ -221,7 +221,7 @@ class RandomResizedCropWithUV(object):
                 a.set_yticks([])
 
         # scale bm to -1.0 to 1.0
-        bm_norm = bm / 448
+        bm_norm = bm / 447
         bm_norm = (bm_norm - 0.5) * 2
         bm_norm = bm_norm.permute(1, 2, 0)[None].float()
 
