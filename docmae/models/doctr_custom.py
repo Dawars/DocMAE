@@ -13,59 +13,29 @@ from torchvision.transforms import transforms
 from docmae.models.transformer import BasicEncoder, build_position_encoding
 
 
-class attnLayer(nn.Module):
+class SelfAttnLayer(nn.Module):
     def __init__(self, d_model, nhead=8, dim_feedforward=2048, dropout=0.1, activation="relu", normalize_before=False):
         super().__init__()
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
-        self.multihead_attn_list = nn.ModuleList(
-            [copy.deepcopy(nn.MultiheadAttention(d_model, nhead, dropout=dropout)) for i in range(2)]
-        )
         # Implementation of Feedforward model
         self.linear1 = nn.Linear(d_model, dim_feedforward)
         self.dropout = nn.Dropout(dropout)
         self.linear2 = nn.Linear(dim_feedforward, d_model)
 
         self.norm1 = nn.LayerNorm(d_model)
-        self.norm2_list = nn.ModuleList([copy.deepcopy(nn.LayerNorm(d_model)) for i in range(2)])
 
         self.norm3 = nn.LayerNorm(d_model)
         self.dropout1 = nn.Dropout(dropout)
-        self.dropout2_list = nn.ModuleList([copy.deepcopy(nn.Dropout(dropout)) for i in range(2)])
         self.dropout3 = nn.Dropout(dropout)
 
         self.activation = _get_activation_fn(activation)
         self.normalize_before = normalize_before
 
-    def with_pos_embed(self, tensor, pos: Optional[torch.Tensor]):
-        return tensor if pos is None else tensor + pos
-
-    def forward_post(
-        self,
-        tgt,
-        memory_list,
-        tgt_mask=None,
-        memory_mask=None,
-        tgt_key_padding_mask=None,
-        memory_key_padding_mask=None,
-        pos=None,
-        memory_pos=None,
-    ):
-        q = k = self.with_pos_embed(tgt, pos)
-        tgt2 = self.self_attn(q, k, value=tgt, attn_mask=tgt_mask, key_padding_mask=tgt_key_padding_mask)[0]
-        tgt = tgt + self.dropout1(tgt2)
+    def forward_post(self, tgt):
+        q = k = v = tgt
+        tgt2 = self.self_attn(q, k, v, need_weights=False)[0]
+        tgt = q + self.dropout1(tgt2)
         tgt = self.norm1(tgt)
-        for memory, multihead_attn, norm2, dropout2, m_pos in zip(
-            memory_list, self.multihead_attn_list, self.norm2_list, self.dropout2_list, memory_pos
-        ):
-            tgt2 = multihead_attn(
-                query=self.with_pos_embed(tgt, pos),
-                key=self.with_pos_embed(memory, m_pos),
-                value=memory,
-                attn_mask=memory_mask,
-                key_padding_mask=memory_key_padding_mask,
-            )[0]
-            tgt = tgt + dropout2(tgt2)
-            tgt = norm2(tgt)
         tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt))))
         tgt = tgt + self.dropout3(tgt2)
         tgt = self.norm3(tgt)
@@ -82,7 +52,7 @@ class attnLayer(nn.Module):
         pos=None,
         memory_pos=None,
     ):
-        tgt2 = self.norm1(tgt)
+        tgt2 = self.norm1(tgt)  # todo normalize q only?
         q = k = self.with_pos_embed(tgt2, pos)
         tgt2 = self.self_attn(q, k, value=tgt2, attn_mask=tgt_mask, key_padding_mask=tgt_key_padding_mask)[0]
         tgt = tgt + self.dropout1(tgt2)
@@ -100,24 +70,64 @@ class attnLayer(nn.Module):
         tgt = tgt + self.dropout3(tgt2)
         return tgt
 
-    def forward(
+    def forward(self, q):
+        # if self.normalize_before:
+        #     return self.forward_pre(
+        #         tgt, memory_list, tgt_mask, memory_mask, tgt_key_padding_mask, memory_key_padding_mask, pos, memory_pos
+        #     )
+        return self.forward_post(q)
+
+
+class CrossAttnLayer(nn.Module):
+    def __init__(self, d_model, nhead=8, dim_feedforward=2048, dropout=0.1, activation="relu", normalize_before=False):
+        super().__init__()
+        self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
+        self.cross_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
+
+        # Implementation of Feedforward model
+        self.linear1 = nn.Linear(d_model, dim_feedforward)
+        self.dropout = nn.Dropout(dropout)
+        self.linear2 = nn.Linear(dim_feedforward, d_model)
+
+        self.norm1 = nn.LayerNorm(d_model)
+        self.norm2 = nn.LayerNorm(d_model)
+
+        self.norm3 = nn.LayerNorm(d_model)
+        self.dropout1 = nn.Dropout(dropout)
+        self.dropout2 = nn.Dropout(dropout)
+        self.dropout3 = nn.Dropout(dropout)
+
+        self.activation = _get_activation_fn(activation)
+        self.normalize_before = normalize_before
+
+    def forward_post(
         self,
-        tgt,
-        memory_list,
-        tgt_mask=None,
-        memory_mask=None,
-        tgt_key_padding_mask=None,
-        memory_key_padding_mask=None,
-        pos=None,
-        memory_pos=None,
+        tgt,  # embedding
+        cross_input,  # encoder features
     ):
-        if self.normalize_before:
-            return self.forward_pre(
-                tgt, memory_list, tgt_mask, memory_mask, tgt_key_padding_mask, memory_key_padding_mask, pos, memory_pos
-            )
-        return self.forward_post(
-            tgt, memory_list, tgt_mask, memory_mask, tgt_key_padding_mask, memory_key_padding_mask, pos, memory_pos
-        )
+        q = k = v = tgt
+        tgt2 = self.self_attn(q, k, v, need_weights=False)[0]
+        tgt = q + self.dropout1(tgt2)
+        tgt = self.norm1(tgt)
+        tgt2 = self.cross_attn(
+            query=tgt,
+            key=cross_input,
+            value=cross_input,
+            need_weights=False,
+        )[0]
+        tgt = tgt + self.dropout2(tgt2)
+        tgt = self.norm2(tgt)
+        tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt))))
+        tgt = tgt + self.dropout3(tgt2)
+        tgt = self.norm3(tgt)
+        return tgt
+
+    def forward(self, q, cross_input):
+        # if self.normalize_before:
+        #     return self.forward_pre(
+        #         tgt, memory_list, tgt_mask, memory_mask, tgt_key_padding_mask, memory_key_padding_mask, pos, memory_pos
+        #     )
+        return self.forward_post(q, cross_input)
 
 
 def _get_clones(module, N):
@@ -138,22 +148,21 @@ def _get_activation_fn(activation):
 class TransDecoder(nn.Module):
     def __init__(self, num_attn_layers, hidden_dim=128):
         super(TransDecoder, self).__init__()
-        attn_layer = attnLayer(hidden_dim)
+        attn_layer = CrossAttnLayer(hidden_dim)
         self.layers = _get_clones(attn_layer, num_attn_layers)
-        self.position_embedding = build_position_encoding(hidden_dim)
+        position_embedding = build_position_encoding(hidden_dim)
+        self.pos = position_embedding(torch.ones((1, 36, 36), dtype=torch.bool).cuda())  # torch.Size([1, 128, 36, 36])
+        self.pos = self.pos.flatten(2).permute(2, 0, 1)
 
     def forward(self, imgf, query_embed):
-        pos = self.position_embedding(
-            torch.ones(imgf.shape[0], imgf.shape[2], imgf.shape[3]).bool().cuda()
-        )  # torch.Size([1, 128, 36, 36])
-
         bs, c, h, w = imgf.shape
         imgf = imgf.flatten(2).permute(2, 0, 1)
+        # imgf = imgf + self.pos  # add positional encoding  # todo no pos encoding needed here?
         query_embed = query_embed.unsqueeze(1).repeat(1, bs, 1)
-        pos = pos.flatten(2).permute(2, 0, 1)
+        query_embed = query_embed + self.pos  # add positional encoding
 
         for layer in self.layers:
-            query_embed = layer(query_embed, [imgf], pos=pos, memory_pos=[pos, pos])
+            query_embed = layer(query_embed, cross_input=imgf)
         query_embed = query_embed.permute(1, 2, 0).reshape(bs, c, h, w)
 
         return query_embed
@@ -162,20 +171,19 @@ class TransDecoder(nn.Module):
 class TransEncoder(nn.Module):
     def __init__(self, num_attn_layers, hidden_dim=128):
         super(TransEncoder, self).__init__()
-        attn_layer = attnLayer(hidden_dim)
+        attn_layer = SelfAttnLayer(hidden_dim)
         self.layers = _get_clones(attn_layer, num_attn_layers)
-        self.position_embedding = build_position_encoding(hidden_dim)
+        position_embedding = build_position_encoding(hidden_dim)
+        self.pos = position_embedding(torch.ones((1, 36, 36), dtype=torch.bool).cuda())  # torch.Size([1, 128, 36, 36])
+        self.pos = self.pos.flatten(2).permute(2, 0, 1)
 
     def forward(self, imgf):
-        pos = self.position_embedding(
-            torch.ones(imgf.shape[0], imgf.shape[2], imgf.shape[3]).bool().cuda()
-        )  # torch.Size([1, 128, 36, 36])
         bs, c, h, w = imgf.shape
         imgf = imgf.flatten(2).permute(2, 0, 1)
-        pos = pos.flatten(2).permute(2, 0, 1)
+        imgf = imgf + self.pos  # add positional encoding
 
         for layer in self.layers:
-            imgf = layer(imgf, [imgf], pos=pos, memory_pos=[pos, pos])
+            imgf = layer(imgf)
         imgf = imgf.permute(1, 2, 0).reshape(bs, c, h, w)
 
         return imgf
@@ -210,7 +218,7 @@ class DocTrOrig(nn.Module):
 
     def forward(self, image):
         """
-            image: segmented image
+        image: segmented image
         """
         fmap = self.fnet(image)
         fmap = torch.relu(fmap)

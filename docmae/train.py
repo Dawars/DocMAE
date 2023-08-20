@@ -21,6 +21,7 @@ from docmae.data.doc3d import Doc3D
 
 from docmae import setup_logging
 from docmae.models.doctr import DocTr
+from docmae.models.doctr_custom import DocTrOrig
 from docmae.models.rectification import Rectification
 from docmae.utils.transforms import RandomResizedCropWithUV
 
@@ -94,7 +95,7 @@ def train(args, config: dict):
         enable_progress_bar=config["progress_bar"],
     )
 
-    model = DocTr(config["model"])
+    model = DocTrOrig(config["model"])
     model = Rectification(model, config)
 
     # test export
