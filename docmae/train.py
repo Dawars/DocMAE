@@ -46,6 +46,8 @@ def parse_arguments():
 
 
 def train(args, config: dict):
+    L.seed_everything(config["training"]["seed"])
+
     train_transform = transforms.Compose(
         [
             # transforms.RandomRotation((-10, 10)),

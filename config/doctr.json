@@ -3,6 +3,7 @@
   "segmenter_ckpt": "u2netp.pth",
   "progress_bar": true,
   "training": {
+    "seed": 1337,
     "num_devices": 1,
     "steps": 500000,
     "batch_size": 8,
