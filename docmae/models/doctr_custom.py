@@ -21,13 +21,10 @@ class SelfAttnLayer(nn.Module):
         dim_feedforward=2048,
         dropout=0.1,
         activation="relu",
-        normalize_before=False,
         extra_attention=False,
-        extra_skip=False,
     ):
         super().__init__()
         self.extra_attention = extra_attention
-        self.extra_skip = extra_skip
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         self.cross_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         # Implementation of Feedforward model
@@ -43,25 +40,22 @@ class SelfAttnLayer(nn.Module):
         self.dropout3 = nn.Dropout(dropout)
 
         self.activation = _get_activation_fn(activation)
-        self.normalize_before = normalize_before
 
-    def forward_post(self, tgt, pos_list=[None, None, None]):
-        tgt_orig = tgt  # for extra skip
-        q = k = v = tgt
-
-        q = self.with_pos_embed(q, pos_list[0])
-        k = self.with_pos_embed(k, pos_list[1])
-        v = self.with_pos_embed(v, pos_list[2])
+    def forward_post(self, query, key, value, cross_kv=None, pos_list=[None, None, None]):
+        q = self.with_pos_embed(query, pos_list[0])
+        k = self.with_pos_embed(key, pos_list[1])
+        v = self.with_pos_embed(value, pos_list[2])
 
         tgt2 = self.self_attn(q, k, v, need_weights=False)[0]
-        tgt = tgt + self.dropout1(tgt2)
+        tgt = query + self.dropout1(tgt2)  # query and key should be equal, using it for skip connection
         tgt = self.norm1(tgt)
 
         if self.extra_attention:
-            q = k = v = tgt
-            if self.extra_attention:
-                k = tgt_orig
-                v = tgt_orig
+            if cross_kv is not None:
+                q = tgt
+                k = v = cross_kv
+            else:
+                q = k = v = tgt
             q = self.with_pos_embed(q, pos_list[0])
             k = self.with_pos_embed(k, pos_list[1])
             v = self.with_pos_embed(v, pos_list[2])
@@ -75,48 +69,15 @@ class SelfAttnLayer(nn.Module):
         tgt = self.norm3(tgt)
         return tgt
 
-    def forward_pre(
-        self,
-        tgt,
-        memory,
-        tgt_mask=None,
-        memory_mask=None,
-        tgt_key_padding_mask=None,
-        memory_key_padding_mask=None,
-        pos=None,
-        memory_pos=None,
-    ):
-        tgt2 = self.norm1(tgt)  # todo normalize q only?
-        q = k = self.with_pos_embed(tgt2, pos)
-        tgt2 = self.self_attn(q, k, value=tgt2, attn_mask=tgt_mask, key_padding_mask=tgt_key_padding_mask)[0]
-        tgt = tgt + self.dropout1(tgt2)
-        tgt2 = self.norm2(tgt)
-        tgt2 = self.multihead_attn(
-            query=self.with_pos_embed(tgt2, pos),
-            key=self.with_pos_embed(memory, memory_pos),
-            value=memory,
-            attn_mask=memory_mask,
-            key_padding_mask=memory_key_padding_mask,
-        )[0]
-        tgt = tgt + self.dropout2(tgt2)
-        tgt2 = self.norm3(tgt)
-        tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt2))))
-        tgt = tgt + self.dropout3(tgt2)
-        return tgt
-
-    def forward(self, q, pos_list):
-        # if self.normalize_before:
-        #     return self.forward_pre(
-        #         tgt, memory_list, tgt_mask, memory_mask, tgt_key_padding_mask, memory_key_padding_mask, pos, memory_pos
-        #     )
-        return self.forward_post(q, pos_list=pos_list)
+    def forward(self, query, key, value, cross_kv, pos_list):
+        return self.forward_post(query, key, value, cross_kv=cross_kv, pos_list=pos_list)
 
     def with_pos_embed(self, tensor, pos: Optional[torch.Tensor]):
         return tensor if pos is None else tensor + pos
 
 
 class CrossAttnLayer(nn.Module):
-    def __init__(self, d_model, nhead=8, dim_feedforward=2048, dropout=0.1, activation="relu", normalize_before=False):
+    def __init__(self, d_model, nhead=8, dim_feedforward=2048, dropout=0.1, activation="relu"):
         super().__init__()
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         self.cross_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
@@ -134,27 +95,25 @@ class CrossAttnLayer(nn.Module):
         self.dropout3 = nn.Dropout(dropout)
 
         self.activation = _get_activation_fn(activation)
-        self.normalize_before = normalize_before
 
     def forward_post(
-        self, tgt, cross_input, pos_list=[None, None, None]  # query embedding  # encoder features  # positional encoding
+        self, query, key, value, cross_kv, pos_list=[None, None, None]  # query embedding  # encoder features  # positional encoding
     ):
-        q = k = v = tgt
+        q = self.with_pos_embed(query, pos_list[0])
+        k = self.with_pos_embed(key, pos_list[1])
+        v = self.with_pos_embed(value, pos_list[2])
 
+        tgt2 = self.self_attn(q, k, v, need_weights=False)[0]
+        tgt = q + self.dropout1(tgt2)
+        tgt = self.norm1(tgt)
+
+        q = tgt
+        k, v = cross_kv
         q = self.with_pos_embed(q, pos_list[0])
         k = self.with_pos_embed(k, pos_list[1])
         v = self.with_pos_embed(v, pos_list[2])
 
-        tgt2 = self.self_attn(q, k, v, need_weights=False)[0]
-        tgt = tgt + self.dropout1(tgt2)
-        tgt = self.norm1(tgt)
-
-        tgt2 = self.cross_attn(
-            query=self.with_pos_embed(tgt, pos_list[0]),
-            key=self.with_pos_embed(cross_input, pos_list[1]),
-            value=self.with_pos_embed(cross_input, pos_list[2]),
-            need_weights=False,
-        )[0]
+        tgt2 = self.cross_attn(q, k, v, need_weights=False)[0]
         tgt = tgt + self.dropout2(tgt2)
         tgt = self.norm2(tgt)
 
@@ -163,12 +122,8 @@ class CrossAttnLayer(nn.Module):
         tgt = self.norm3(tgt)
         return tgt
 
-    def forward(self, q, cross_input, pos_list):
-        # if self.normalize_before:
-        #     return self.forward_pre(
-        #         tgt, memory_list, tgt_mask, memory_mask, tgt_key_padding_mask, memory_key_padding_mask, pos, memory_pos
-        #     )
-        return self.forward_post(q, cross_input, pos_list=pos_list)
+    def forward(self, query, key, value, cross_kv, pos_list):
+        return self.forward_post(query, key, value, cross_kv, pos_list=pos_list)
 
     def with_pos_embed(self, tensor, pos: Optional[torch.Tensor]):
         return tensor if pos is None else tensor + pos
@@ -204,18 +159,26 @@ class TransDecoder(nn.Module):
         bs, c, h, w = imgf.shape
         imgf = imgf.flatten(2).permute(2, 0, 1)
         query_embed = query_embed.unsqueeze(1).repeat(1, bs, 1)
-        if self.pos_encoding_before:
-            assert self.pos_encoding_value
-            # imgf = imgf + self.pos  # add positional encoding  # no pos encoding for embedding output originally
-            query_embed = query_embed + self.pos  # add positional encoding
-            pos_list = [None] * 3
-        elif self.pos_encoding_value:  # PE value and not PE query as in original
-            pos_list = [None, self.pos, self.pos]
-        else:  # don't encode value and encode query as in doctr
-            pos_list = [self.pos, self.pos, None]
 
-        for layer in self.layers:
-            query_embed = layer(query_embed, cross_input=imgf, pos_list=pos_list)
+        cross_k = cross_v = imgf
+        for i, layer in enumerate(self.layers):
+            query = key = value = query_embed
+
+            if self.pos_encoding_before:
+                pos_list = [None] * 3
+                if i == 0:
+                    query = query + self.pos
+                    key = key + self.pos
+                    # cross_k = cross_k + self.pos  # in orig transformer PE is not added here at all
+                    if self.pos_encoding_value:
+                        value = value + self.pos
+                        # cross_v = cross_v + self.pos
+            else:  # add PE every block, also added to cross k,v
+                if self.pos_encoding_value:
+                    pos_list = [self.pos] * 3
+                else:
+                    pos_list = [self.pos, self.pos, None]
+            query_embed = layer(query=query, key=key, value=value, cross_kv=[cross_k, cross_v], pos_list=pos_list)
         query_embed = query_embed.permute(1, 2, 0).reshape(bs, c, h, w)
 
         return query_embed
@@ -234,28 +197,37 @@ class TransEncoder(nn.Module):
         super(TransEncoder, self).__init__()
         if not extra_attention:
             assert not extra_skip
-
+        self.extra_skip = extra_skip
         self.pos_encoding_before = pos_encoding_before
         self.pos_encoding_value = pos_encoding_value
-        attn_layer = SelfAttnLayer(hidden_dim, extra_attention=extra_attention, extra_skip=extra_skip)
+        attn_layer = SelfAttnLayer(hidden_dim, extra_attention=extra_attention)
         self.layers = _get_clones(attn_layer, num_attn_layers)
         position_embedding = build_position_encoding(hidden_dim)
+        # run here because sin PE is not learned
         self.pos = position_embedding(torch.ones((1, 36, 36), dtype=torch.bool).cuda())  # torch.Size([1, 128, 36, 36])
         self.pos = self.pos.flatten(2).permute(2, 0, 1)
 
     def forward(self, imgf):
         bs, c, h, w = imgf.shape
         imgf = imgf.flatten(2).permute(2, 0, 1)
-        if self.pos_encoding_before:
-            imgf = imgf + self.pos
-            pos_list = [None] * 3
-        elif self.pos_encoding_value:
-            pos_list = [self.pos] * 3
-        else:
-            pos_list = [self.pos, self.pos, None]
 
-        for layer in self.layers:
-            imgf = layer(imgf, pos_list=pos_list)
+        for i, layer in enumerate(self.layers):
+            query = key = value = imgf
+
+            if self.pos_encoding_before:
+                pos_list = [None] * 3
+                if i == 0:
+                    query = query + self.pos
+                    key = key + self.pos
+                    if self.pos_encoding_value:
+                        value = value + self.pos
+            else:  # add PE every block
+                if self.pos_encoding_value:
+                    pos_list = [self.pos] * 3
+                else:
+                    pos_list = [self.pos, self.pos, None]
+            cross_kv = query if self.extra_skip else None  # extra skip connection from block input before blockwise PE
+            imgf = layer(query=query, key=key, value=value, cross_kv=cross_kv, pos_list=pos_list)
         imgf = imgf.permute(1, 2, 0).reshape(bs, c, h, w)
 
         return imgf
@@ -285,16 +257,16 @@ class DocTrOrig(nn.Module):
         self.TransEncoder = TransEncoder(
             self.num_attn_layers,
             hidden_dim=hdim,
-            extra_attention=config["extra_attention"],
-            extra_skip=config["extra_skip"],
-            pos_encoding_before=config["pos_encoding_before"],
-            pos_encoding_value=config["pos_encoding_value"],
+            extra_attention=config["extra_attention"],  # corresponds to cross attention block in decoder
+            extra_skip=config["extra_skip"],  # k,v comes from block input (q)
+            pos_encoding_before=not config["add_pe_every_block"],  # only add PE once before encoder blocks
+            pos_encoding_value=not config["no_pe_for_value"],
         )
         self.TransDecoder = TransDecoder(
             self.num_attn_layers,
             hidden_dim=hdim,
-            pos_encoding_before=config["pos_encoding_before"],
-            pos_encoding_value=config["pos_encoding_value"],
+            pos_encoding_before=not config["add_pe_every_block"],
+            pos_encoding_value=not config["no_pe_for_value"],
         )
         self.query_embed = nn.Embedding(1296, hdim)
 
