@@ -10,7 +10,7 @@ from torch import nn
 import torch.nn.functional as F
 from torchvision.transforms import transforms
 
-from docmae.models.transformer import BasicEncoder, build_position_encoding
+from docmae.models.transformer import build_position_encoding
 
 
 class SelfAttnLayer(nn.Module):
@@ -252,8 +252,6 @@ class DocTrOrig(nn.Module):
 
         hdim = config["hidden_dim"]
 
-        self.fnet = BasicEncoder(output_dim=hdim, norm_fn="instance")
-
         self.TransEncoder = TransEncoder(
             self.num_attn_layers,
             hidden_dim=hdim,
@@ -272,12 +270,11 @@ class DocTrOrig(nn.Module):
 
         self.flow_head = FlowHead(hdim, hidden_dim=hdim)
 
-    def forward(self, image):
+    def forward(self, backbone_features):
         """
         image: segmented image
         """
-        fmap = self.fnet(image)
-        fmap = torch.relu(fmap)
+        fmap = torch.relu(backbone_features)
 
         fmap = self.TransEncoder(fmap)
         fmap = self.TransDecoder(fmap, self.query_embed.weight)

@@ -20,6 +20,8 @@ import torchvision.transforms.v2 as transforms
 from docmae.data.doc3d import Doc3D
 
 from docmae import setup_logging
+from docmae.models.transformer import BasicEncoder
+from docmae.models.upscale import UpscaleRAFT, UpscaleTransposeConv, UpscaleInterpolate
 from docmae.models.doctr import DocTr
 from docmae.models.doctr_custom import DocTrOrig
 from docmae.models.rectification import Rectification
@@ -97,11 +99,22 @@ def train(args, config: dict):
         enable_progress_bar=config["progress_bar"],
     )
 
+    hidden_dim = config["model"]["hidden_dim"]
+    backbone = BasicEncoder(output_dim=hidden_dim, norm_fn="instance")
     model = DocTrOrig(config["model"])
-    model = Rectification(model, config)
+    upscale_type = config["model"]["upscale_type"]
+    if upscale_type == "raft":
+        upscale_module = UpscaleRAFT(8, hidden_dim)
+    elif upscale_type == "transpose_conv":
+        upscale_module = UpscaleTransposeConv(hidden_dim, hidden_dim // 2)
+    elif upscale_type == "interpolate":
+        upscale_module = UpscaleInterpolate(hidden_dim, hidden_dim // 2)
+    else:
+        raise NotImplementedError
+    model = Rectification(backbone, model, upscale_module, config).cuda()
 
     # test export
-    print(model.cuda().to_torchscript(method="trace"))
+    print(model.to_torchscript(method="trace"))
 
     trainer.fit(model, train_loader, val_loader)
 

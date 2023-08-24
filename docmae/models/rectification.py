@@ -10,7 +10,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torchvision.transforms import transforms
 from torchvision.utils import flow_to_image
 
-from docmae.models.upscale import UpscaleRAFT, UpscaleTransposeConv, UpscaleInterpolate, coords_grid
+from docmae.models.upscale import coords_grid
 
 
 class Rectification(L.LightningModule):
@@ -18,30 +18,25 @@ class Rectification(L.LightningModule):
 
     def __init__(
         self,
+        backbone: nn.Module,
         model: nn.Module,
+        upscale: nn.Module,
         config,
     ):
         super().__init__()
         self.example_input_array = torch.rand(1, 3, 288, 288)
 
+        self.backbone = backbone
         self.model = model
+        self.upscale_module = upscale
         self.config = config
         hparams = config["model"]
 
         H, W = self.example_input_array.shape[2:]
         self.coodslar = coords_grid(1, H, W).to(self.example_input_array.device)
 
-        self.upscale_type = hparams["upscale_type"]
         self.segment_background = hparams["segment_background"]
         self.hidden_dim = hparams["hidden_dim"]
-        if self.upscale_type == "raft":
-            self.upscale_module = UpscaleRAFT(8, self.hidden_dim)
-        elif self.upscale_type == "transpose_conv":
-            self.upscale_module = UpscaleTransposeConv(self.hidden_dim, self.hidden_dim // 2)
-        elif self.upscale_type == "interpolate":
-            self.upscale_module = UpscaleInterpolate(self.hidden_dim, self.hidden_dim // 2)
-        else:
-            raise NotImplementedError
 
         self.loss = L1Loss()
         self.save_hyperparameters(hparams)
@@ -74,7 +69,8 @@ class Rectification(L.LightningModule):
             inputs: image tensor of shape [B, C, H, W]
         Returns: flow displacement
         """
-        outputs = self.model(inputs)
+        backbone_features = self.backbone(inputs)
+        outputs = self.model(backbone_features)
         flow_up = self.upscale_module(**outputs)
         return flow_up
 

@@ -9,7 +9,7 @@ from torch import nn
 import torch.nn.functional as F
 from torchvision.transforms import transforms
 
-from docmae.models.transformer import BasicEncoder, build_position_encoding
+from docmae.models.transformer import build_position_encoding
 
 
 class attnLayer(nn.Module):
@@ -40,8 +40,8 @@ class attnLayer(nn.Module):
 
     def forward_post(
         self,
-        tgt,
-        memory_list,
+        tgt,  # query embed
+        memory_list,  # imgf
         tgt_mask=None,
         memory_mask=None,
         tgt_key_padding_mask=None,
@@ -152,7 +152,7 @@ class TransDecoder(nn.Module):
         pos = pos.flatten(2).permute(2, 0, 1)
 
         for layer in self.layers:
-            query_embed = layer(query_embed, [imgf], pos=pos, memory_pos=[pos, pos])
+            query_embed = layer(query_embed, [imgf], pos=pos, memory_pos=[pos])
         query_embed = query_embed.permute(1, 2, 0).reshape(bs, c, h, w)
 
         return query_embed
@@ -199,20 +199,17 @@ class DocTr(nn.Module):
 
         hdim = config["hidden_dim"]
 
-        self.fnet = BasicEncoder(output_dim=hdim, norm_fn="instance")
-
         self.TransEncoder = TransEncoder(self.num_attn_layers, hidden_dim=hdim)
         self.TransDecoder = TransDecoder(self.num_attn_layers, hidden_dim=hdim)
         self.query_embed = nn.Embedding(1296, hdim)
 
         self.flow_head = FlowHead(hdim, hidden_dim=hdim)
 
-    def forward(self, image):
+    def forward(self, backbone_features):
         """
             image: segmented image
         """
-        fmap = self.fnet(image)
-        fmap = torch.relu(fmap)
+        fmap = torch.relu(backbone_features)
 
         fmap = self.TransEncoder(fmap)
         fmap = self.TransDecoder(fmap, self.query_embed.weight)
