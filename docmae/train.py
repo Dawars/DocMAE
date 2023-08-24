@@ -24,6 +24,7 @@ from docmae.models.transformer import BasicEncoder
 from docmae.models.upscale import UpscaleRAFT, UpscaleTransposeConv, UpscaleInterpolate
 from docmae.models.doctr import DocTr
 from docmae.models.doctr_custom import DocTrOrig
+from docmae.models.doctr_plus import DocTrPlus
 from docmae.models.rectification import Rectification
 from docmae.utils.transforms import RandomResizedCropWithUV
 
@@ -101,7 +102,7 @@ def train(args, config: dict):
 
     hidden_dim = config["model"]["hidden_dim"]
     backbone = BasicEncoder(output_dim=hidden_dim, norm_fn="instance")
-    model = DocTrOrig(config["model"])
+    model = DocTrPlus(config["model"])
     upscale_type = config["model"]["upscale_type"]
     if upscale_type == "raft":
         upscale_module = UpscaleRAFT(8, hidden_dim)

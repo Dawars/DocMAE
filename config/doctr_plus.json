@@ -1,0 +1,25 @@
+{
+  "dataset_path": "/home/dawars/datasets/doc3d/",
+  "progress_bar": true,
+  "training": {
+    "seed": 1337,
+    "num_devices": -1,
+    "steps": 1000000,
+    "batch_size": 12,
+    "num_workers": 12,
+    "crop": true,
+    "mask_loss": false,
+    "ocr_loss": false,
+    "line_loss": false
+  },
+  "model": {
+    "segment_background": false,
+    "hidden_dim": 256,
+    "num_attn_layers": 6,
+    "upscale_type": "raft",
+    "extra_attention": true,
+    "extra_skip": true,
+    "add_pe_every_block": true,
+    "no_pe_for_value": true
+  }
+}

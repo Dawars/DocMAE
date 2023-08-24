@@ -57,7 +57,7 @@ class Rectification(L.LightningModule):
 
         optimizer = torch.optim.AdamW(self.parameters())
         scheduler = {
-            "scheduler": OneCycleLR(optimizer, max_lr=1e-4, pct_start=0.0014, total_steps=self.config["training"]["steps"]),
+            "scheduler": OneCycleLR(optimizer, max_lr=1e-4, pct_start=0.1, total_steps=self.config["training"]["steps"]),
             "interval": "step",
         }
         return [optimizer], [scheduler]
