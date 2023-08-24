@@ -252,7 +252,7 @@ class DocTrOrig(nn.Module):
 
         hdim = config["hidden_dim"]
 
-        self.TransEncoder = TransEncoder(
+        self.trans_encoder = TransEncoder(
             self.num_attn_layers,
             hidden_dim=hdim,
             extra_attention=config["extra_attention"],  # corresponds to cross attention block in decoder
@@ -260,7 +260,7 @@ class DocTrOrig(nn.Module):
             pos_encoding_before=not config["add_pe_every_block"],  # only add PE once before encoder blocks
             pos_encoding_value=not config["no_pe_for_value"],
         )
-        self.TransDecoder = TransDecoder(
+        self.trans_decoder = TransDecoder(
             self.num_attn_layers,
             hidden_dim=hdim,
             pos_encoding_before=not config["add_pe_every_block"],
@@ -276,8 +276,8 @@ class DocTrOrig(nn.Module):
         """
         fmap = torch.relu(backbone_features)
 
-        fmap = self.TransEncoder(fmap)
-        fmap = self.TransDecoder(fmap, self.query_embed.weight)
+        fmap = self.trans_encoder(fmap)
+        fmap = self.trans_decoder(fmap, self.query_embed.weight)
 
         dflow = self.flow_head(fmap)
 

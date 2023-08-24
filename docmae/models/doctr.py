@@ -12,7 +12,7 @@ from torchvision.transforms import transforms
 from docmae.models.transformer import build_position_encoding
 
 
-class attnLayer(nn.Module):
+class AttnLayer(nn.Module):
     def __init__(self, d_model, nhead=8, dim_feedforward=2048, dropout=0.1, activation="relu", normalize_before=False):
         super().__init__()
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
@@ -137,7 +137,7 @@ def _get_activation_fn(activation):
 class TransDecoder(nn.Module):
     def __init__(self, num_attn_layers, hidden_dim=128):
         super(TransDecoder, self).__init__()
-        attn_layer = attnLayer(hidden_dim)
+        attn_layer = AttnLayer(hidden_dim)
         self.layers = _get_clones(attn_layer, num_attn_layers)
         self.position_embedding = build_position_encoding(hidden_dim)
 
@@ -161,7 +161,7 @@ class TransDecoder(nn.Module):
 class TransEncoder(nn.Module):
     def __init__(self, num_attn_layers, hidden_dim=128):
         super(TransEncoder, self).__init__()
-        attn_layer = attnLayer(hidden_dim)
+        attn_layer = AttnLayer(hidden_dim)
         self.layers = _get_clones(attn_layer, num_attn_layers)
         self.position_embedding = build_position_encoding(hidden_dim)
 
@@ -199,8 +199,8 @@ class DocTr(nn.Module):
 
         hdim = config["hidden_dim"]
 
-        self.TransEncoder = TransEncoder(self.num_attn_layers, hidden_dim=hdim)
-        self.TransDecoder = TransDecoder(self.num_attn_layers, hidden_dim=hdim)
+        self.trans_encoder = TransEncoder(self.num_attn_layers, hidden_dim=hdim)
+        self.trans_decoder = TransDecoder(self.num_attn_layers, hidden_dim=hdim)
         self.query_embed = nn.Embedding(1296, hdim)
 
         self.flow_head = FlowHead(hdim, hidden_dim=hdim)
@@ -211,8 +211,8 @@ class DocTr(nn.Module):
         """
         fmap = torch.relu(backbone_features)
 
-        fmap = self.TransEncoder(fmap)
-        fmap = self.TransDecoder(fmap, self.query_embed.weight)
+        fmap = self.trans_encoder(fmap)
+        fmap = self.trans_decoder(fmap, self.query_embed.weight)
 
         dflow = self.flow_head(fmap)
 
