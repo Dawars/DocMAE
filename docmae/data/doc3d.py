@@ -25,7 +25,7 @@ class Doc3D(Dataset):
         """
 
         self.data_root = data_root
-        self.filenames = (data_root / f"{split}.txt").read_text().split()
+        self.filenames = (data_root / f"{split}.txt").read_text().strip().split("\n")
         self.prefix_img = "img/"
         self.prefix_bm = "bm/"
         self.prefix_uv = "uv/"
