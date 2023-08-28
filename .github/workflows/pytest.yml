@@ -14,4 +14,4 @@ jobs:
       - uses: Gr1N/setup-poetry@v8
       - run: poetry --version
       - run: poetry install
-      - run: poetry run pytest
+      - run: poetry run pytest tests
