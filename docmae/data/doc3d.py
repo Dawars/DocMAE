@@ -3,7 +3,6 @@ import logging
 from pathlib import Path
 
 import h5py
-from matplotlib import pyplot as plt
 from PIL import Image
 import cv2
 from torch.utils.data import Dataset
@@ -47,15 +46,16 @@ class Doc3D(Dataset):
         bm = np.array(h5file.get("bm"))
         bm = bm.transpose((2, 1, 0))
 
-        bm = datapoints.Image(bm.transpose((2, 0, 1)))  # absolute back mapping
+        bm = datapoints.Image((bm / image.shape[1:]).transpose((2, 0, 1)))  # absolute back mapping [0, 1]
 
         # mask from uv
         # Decode the EXR data using OpenCV
-        uv = cv2.imread(str(self.data_root / self.prefix_uv / f"{filename}.exr"), cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)
-        uv = cv2.cvtColor(uv, cv2.COLOR_BGR2RGB)  # forward mapping
-        uv_mask = datapoints.Mask(uv.transpose(2, 0, 1))
+        uv_mask = cv2.imread(str(self.data_root / self.prefix_uv / f"{filename}.exr"), cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)
+        uv_mask = cv2.cvtColor(uv_mask, cv2.COLOR_BGR2RGB).transpose(2, 0, 1)  # forward mapping
+        uv = datapoints.Mask(uv_mask[:2])
+        mask = datapoints.Mask(uv_mask[2:3])
 
         if self.transforms:
-            image, bm, uv_mask = self.transforms(image, bm, uv_mask)
+            image, bm, uv, mask = self.transforms(image, bm, uv, mask)
 
-        return {"image": image, "bm": bm, "mask": uv_mask}
+        return {"image": image, "bm": bm, "uv": uv, "mask": mask}

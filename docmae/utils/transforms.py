@@ -4,8 +4,6 @@ import warnings
 from typing import Any, cast, Dict, List, Optional, Sequence, Tuple, Union
 
 import torch
-import torch.nn.functional as F
-from matplotlib import pyplot as plt
 from torchvision import datapoints
 from torchvision.transforms import InterpolationMode, functional
 from torchvision.transforms.v2 import functional as TF
@@ -131,17 +129,20 @@ class RandomResizedCropWithUV(object):
         return dict(top=i, left=j, height=h, width=w)
 
     def __call__(self, sample) -> Any:
-        image, bm, uv_mask = sample
+        image, bm, uv, mask = sample
         orig_size = image.shape[1:]
-        params = self._get_params([image, bm, uv_mask])
+        params = self._get_params([image, bm, uv, mask])
         crop = True
         while crop:
-            params = self._get_params([image, bm, uv_mask])
-            uv_mask_crop = TF.resized_crop(
-                uv_mask, **params, size=self.size, interpolation=InterpolationMode.NEAREST_EXACT, antialias=False
+            params = self._get_params([image, bm, uv, mask])
+            uv_crop = TF.resized_crop(
+                uv, **params, size=self.size, interpolation=InterpolationMode.NEAREST_EXACT, antialias=False
             )
+            mask_crop = TF.resized_crop(
+                mask, **params, size=self.size, interpolation=InterpolationMode.NEAREST_EXACT, antialias=False
+            ).squeeze()
             # more than half of the image is filled
-            if uv_mask_crop[2].sum() > 10:
+            if mask_crop.sum() > 10:
                 crop = False
             else:
                 logging.warning("Crop contains little content, recropping")
@@ -155,9 +156,7 @@ class RandomResizedCropWithUV(object):
 
         image_crop = TF.resized_crop(
             image[None], **params, size=self.size, interpolation=self.interpolation, antialias=self.antialias
-        )[0]
-
-        uv_crop, mask_crop = uv_mask_crop[:2], uv_mask_crop[2]
+        )[0].clip(0, 255)
 
         # flip uv Y
         uv_crop[1, mask_crop.bool()] = 1 - uv_crop[1, mask_crop.bool()]
@@ -170,12 +169,10 @@ class RandomResizedCropWithUV(object):
         max_uv_w = max_uv_w * orig_size[1]
 
         bm_crop = bm[:, min_uv_h.long() : max_uv_h.long() + 1, min_uv_w.long() : max_uv_w.long() + 1]
-        # min_bm_w, min_bm_h = bm_crop[0].min(), bm_crop[1].min()
-        # max_bm_w, max_bm_h = bm_crop[0].max(), bm_crop[1].max()
         bm_crop = functional.resize(bm_crop[None], self.size, interpolation=self.interpolation, antialias=self.antialias)[0]
 
         # normalized relative displacement for sampling
-        bm_crop_norm = (bm_crop.permute(1, 2, 0) / torch.tensor(orig_size) - 0.5) * 2
+        bm_crop_norm = (bm_crop.permute(1, 2, 0) - 0.5) * 2
         # extend crop to include background
         min_crop_w = params["left"]
         min_crop_h = params["top"]
@@ -196,23 +193,25 @@ class RandomResizedCropWithUV(object):
         bm_crop_norm[..., 0] = (bm_crop_norm[..., 0]) * orig_size[0] / (max_crop_w - min_crop_w)
 
         """
+        import torch.nn.functional as F
+        from matplotlib import pyplot as plt
+        import matplotlib.patches as patches
+        from copy import copy
+        
         align_corners = False
         bm_crop_norm = bm_crop_norm.float()[None]
 
-        image_crop_manual = image[:, min_crop_h:max_crop_h + 1, min_crop_w:max_crop_w + 1]
+        image_crop_manual = image[:, min_crop_h : max_crop_h + 1, min_crop_w : max_crop_w + 1]
         image_crop_manual = functional.resize(
             image_crop_manual[None], self.size, interpolation=self.interpolation, antialias=self.antialias
         )[0]
 
-        mask_crop_manual = uv_mask[2, min_crop_h:max_crop_h + 1, min_crop_w:max_crop_w + 1]
+        mask_crop_manual = mask[0, min_crop_h : max_crop_h + 1, min_crop_w : max_crop_w + 1]
         mask_crop_manual = functional.resize(
             mask_crop_manual[None], self.size, interpolation=InterpolationMode.NEAREST_EXACT, antialias=False
         )[0]
 
         zeros = torch.ones((448, 448, 1))
-
-        import matplotlib.patches as patches
-        from copy import copy
 
         f, axrr = plt.subplots(3, 5)
         for ax in axrr:
@@ -221,17 +220,16 @@ class RandomResizedCropWithUV(object):
                 a.set_yticks([])
 
         # scale bm to -1.0 to 1.0
-        bm_norm = bm / 447
-        bm_norm = (bm_norm - 0.5) * 2
+        bm_norm = (bm - 0.5) * 2
         bm_norm = bm_norm.permute(1, 2, 0)[None].float()
 
         axrr[0][0].imshow(image.permute(1, 2, 0) / 255)
         axrr[0][0].title.set_text("full image")
         axrr[0][0].scatter((center_x), (center_y), c="b", s=1)
-        axrr[0][0].scatter((((center_x_norm + 1)/2)*orig_size[1]), (((center_y_norm+1)/2)*orig_size[0]), c="r", s=1)
-        axrr[0][1].imshow(uv_mask[2], cmap="gray")
+        axrr[0][0].scatter((((center_x_norm + 1) / 2) * orig_size[1]), (((center_y_norm + 1) / 2) * orig_size[0]), c="r", s=1)
+        axrr[0][1].imshow(mask[0], cmap="gray")
         axrr[0][1].title.set_text("mask")
-        axrr[0][2].imshow(torch.cat([uv_mask[:2].permute(1, 2, 0), zeros], dim=-1))
+        axrr[0][2].imshow(torch.cat([uv.permute(1, 2, 0), zeros], dim=-1))
         axrr[0][2].title.set_text("uv")
         axrr[0][3].imshow(torch.cat([bm_norm[0] * 0.5 + 0.5, zeros], dim=-1), cmap="gray")
         axrr[0][3].title.set_text("bm")
@@ -265,11 +263,9 @@ class RandomResizedCropWithUV(object):
         axrr[1][2].title.set_text("uv crop")
         axrr[1][3].title.set_text("bm crop manual")
         axrr[1][4].imshow(
-            F.grid_sample(
-                image[None] / 255,
-                (bm_crop.permute(1, 2, 0).float() / torch.tensor(orig_size) - 0.5)[None] * 2,
-                align_corners=align_corners,
-            )[0].permute(1, 2, 0)
+            F.grid_sample(image[None] / 255, (bm_crop.permute(1, 2, 0).float() - 0.5)[None] * 2, align_corners=align_corners,)[
+                0
+            ].permute(1, 2, 0)
         )
         axrr[1][4].title.set_text("unwarped crop from orig")
 
@@ -296,4 +292,9 @@ class RandomResizedCropWithUV(object):
         plt.tight_layout()
         plt.show()
         """
-        return datapoints.Image(image_crop), datapoints.Image((bm_crop_norm.float().permute(2, 0, 1) + 1) / 2), datapoints.Mask(uv_mask_crop)
+        return (
+            datapoints.Image(image_crop),
+            datapoints.Image((bm_crop_norm.float().permute(2, 0, 1) + 1) / 2),
+            datapoints.Mask(uv_crop),
+            datapoints.Mask(mask_crop[None]),
+        )

@@ -77,7 +77,7 @@ class Rectification(L.LightningModule):
     def training_step(self, batch):
         image = batch["image"] / 255
         if self.segment_background:
-            image = image * batch["mask"][:, 2:3]
+            image = image * batch["mask"]
 
         bm_target = batch["bm"] * 287
         batch_size = len(image)
@@ -106,7 +106,7 @@ class Rectification(L.LightningModule):
         # log metrics
         loss = self.loss(bm_target, bm_pred)
         if self.hparams.get("mask_loss_mult", 0) > 0:  # MataDoc unwarped mask loss
-            mask_target = batch["mask"][:, 2:3]
+            mask_target = batch["mask"]
             mask_target_unwarped = F.grid_sample(
                 mask_target, ((bm_target / 287 - 0.5) * 2).permute((0, 2, 3, 1)), align_corners=False
             )
@@ -141,7 +141,7 @@ class Rectification(L.LightningModule):
     def validation_step(self, val_batch, batch_idx):
         image = val_batch["image"] / 255
         if self.segment_background:
-            image = image * val_batch["mask"][:, 2:3]
+            image = image * val_batch["mask"]
         bm_target = val_batch["bm"] * 287
         batch_size = len(image)
 
@@ -196,8 +196,8 @@ class Rectification(L.LightningModule):
     def predict_step(self, batch, batch_idx: int, dataloader_idx: int = 0):
         image_orig = batch["image"]
         b, c, h, w = image_orig.shape
-        image = self.resize(image_orig)
         # resize to 288
+        image = self.resize(image_orig)
         image /= 255
         if self.segment_background:
             mask = (self.segmenter(self.normalize(image)) > 0.5).to(torch.bool)
