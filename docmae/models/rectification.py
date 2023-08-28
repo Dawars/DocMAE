@@ -89,6 +89,11 @@ class Rectification(L.LightningModule):
         if self.global_step == 0:
             ones = torch.ones((batch_size, 1, 288, 288))
             self.tb_log.add_images("train/image", image.detach().cpu(), global_step=self.global_step)
+            image_unwarped = F.grid_sample(
+                image, ((bm_target / 287 - 0.5) * 2).permute((0, 2, 3, 1)), align_corners=False
+            )
+            self.tb_log.add_images("train/unwarped", image_unwarped.detach().cpu(), global_step=self.global_step)
+
             self.tb_log.add_images(
                 "train/bm_target", torch.cat((bm_target.detach().cpu() / 287, ones), dim=1), global_step=self.global_step
             )
