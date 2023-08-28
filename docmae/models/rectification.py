@@ -105,6 +105,22 @@ class Rectification(L.LightningModule):
 
         # log metrics
         loss = self.loss(bm_target, bm_pred)
+        if self.hparams.get("mask_loss_mult", 0) > 0:  # MataDoc unwarped mask loss
+            mask_target = batch["mask"][:, 2:3]
+            mask_target_unwarped = F.grid_sample(
+                mask_target, ((bm_target / 287 - 0.5) * 2).permute((0, 2, 3, 1)), align_corners=False
+            )
+            mask_pred_unwarped = F.grid_sample(
+                mask_target, ((bm_pred / 287 - 0.5) * 2).permute((0, 2, 3, 1)), align_corners=False
+            )
+            if self.global_step == 0:
+                self.tb_log.add_images("train/mask_target", mask_target_unwarped.detach().cpu(), global_step=self.global_step)
+                self.tb_log.add_images("train/mask_pred", mask_pred_unwarped.detach().cpu(), global_step=self.global_step)
+
+            mask_loss = self.loss(mask_target_unwarped, mask_pred_unwarped)
+            self.log("train/mask_loss", mask_loss, on_step=True, on_epoch=True, batch_size=batch_size)
+
+            loss += self.hparams["mask_loss_mult"] * mask_loss
 
         self.log("train/loss", loss, on_step=True, on_epoch=True, batch_size=batch_size)
 
