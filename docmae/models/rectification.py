@@ -145,9 +145,6 @@ class Rectification(L.LightningModule):
         bm_target = val_batch["bm"] * 287
         batch_size = len(image)
 
-        # training image sanity check
-        if self.global_step == 0:
-            self.tb_log.add_images("val/image", image, global_step=self.global_step)
         flow_pred = self.forward(image)
         bm_pred = self.coodslar + flow_pred
 
