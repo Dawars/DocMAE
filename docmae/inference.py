@@ -13,14 +13,18 @@ from lightning.pytorch.callbacks import BasePredictionWriter
 
 from docmae import setup_logging
 from docmae.data.list_dataset import ListDataset
-from docmae.models.doctr import DocTr
+from docmae.models.doctr_custom import DocTrOrig
+from docmae.models.doctr_plus import DocTrPlus
 from docmae.models.rectification import Rectification
+from docmae.models.upscale import UpscaleRAFT, UpscaleTransposeConv, UpscaleInterpolate
+from extractor import BasicEncoder
 
 
 class CustomWriter(BasePredictionWriter):
     def __init__(self, output_dir: str | Path, save_bm: bool, save_mask: bool, write_interval="batch"):
         super().__init__(write_interval)
         self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(exist_ok=True)
         self.save_bm = save_bm
         self.save_mask = save_mask
 
@@ -28,13 +32,13 @@ class CustomWriter(BasePredictionWriter):
         rectified, bm, mask = prediction
         for i, idx in enumerate(batch_indices):
             rectified_ = rectified[i]
-            bm_ = bm[i]
-            mask_ = mask[i]
 
             plt.imsave(self.output_dir / f"{idx}_rect.jpg", rectified_.permute(1, 2, 0).clip(0, 255).cpu().numpy() / 255)
             if self.save_bm:
+                bm_ = bm[i]
                 plt.imsave(self.output_dir / f"{idx}_bm.jpg", flow_to_image(bm_).permute(1, 2, 0).numpy())
-            if self.save_mask and mask_ is not None:
+            if self.save_mask and mask is not None:
+                mask_ = mask[i]
                 plt.imsave(self.output_dir / f"{idx}_mask.png", mask_[0].cpu().numpy(), cmap="gray")
 
 
@@ -61,8 +65,20 @@ def parse_arguments():
 
 
 def inference(args, config):
-    model = DocTr(config["model"])
-    model = Rectification.load_from_checkpoint(args.ckpt_path, "cuda", model=model, config=config)
+    model = DocTrPlus(config["model"])
+
+    hidden_dim = config["model"]["hidden_dim"]
+    backbone = BasicEncoder(output_dim=hidden_dim, norm_fn="instance")
+    upscale_type = config["model"]["upscale_type"]
+    if upscale_type == "raft":
+        upscale_module = UpscaleRAFT(8, hidden_dim)
+    elif upscale_type == "transpose_conv":
+        upscale_module = UpscaleTransposeConv(hidden_dim, hidden_dim // 2)
+    elif upscale_type == "interpolate":
+        upscale_module = UpscaleInterpolate(hidden_dim, hidden_dim // 2)
+    else:
+        raise NotImplementedError
+    model = Rectification.load_from_checkpoint(args.ckpt_path, "cuda", model=model, backbone=backbone, upscale=upscale_module, config=config)
 
     inference_transform = transforms.Compose(
         [

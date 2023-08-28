@@ -165,10 +165,10 @@ class Rectification(L.LightningModule):
 
     def on_predict_start(self):
         self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-
-        self.segmenter = torch.jit.load(self.config["segmenter_ckpt"], map_location=self.device)
-        self.segmenter = torch.jit.freeze(self.segmenter)
-        self.segmenter = torch.jit.optimize_for_inference(self.segmenter)
+        if self.segment_background:
+            self.segmenter = torch.jit.load(self.config["segmenter_ckpt"], map_location=self.device)
+            self.segmenter = torch.jit.freeze(self.segmenter)
+            self.segmenter = torch.jit.optimize_for_inference(self.segmenter)
         self.resize = transforms.Resize((288, 288), antialias=True)
         self.coodslar = self.coodslar.to(self.device)
 
