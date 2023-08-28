@@ -6,12 +6,13 @@ from torchvision.transforms import InterpolationMode
 import torchvision.transforms.v2 as transforms
 
 from docmae.data.doc3d import Doc3D
+from docmae.data.docaligner import DocAligner
 from docmae.utils.transforms import RandomResizedCropWithUV
 
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
 
 
-def test_raw_output():
+def test_doc3d_raw_output():
     dataset = Doc3D(Path("./tests/doc3d/"), "tiny")
 
     sample = dataset[0]
@@ -29,6 +30,24 @@ def test_raw_output():
     assert set(sample["mask"].numpy().flatten()) == {1.0, 0.0}
 
 
+def test_docaligner_raw_output():
+    dataset = DocAligner(Path("/home/dawars/datasets/DocAligner_result/"), "tiny")
+
+    sample = dataset[0]
+
+    # size
+    assert sample["image"].shape == (3, 1024, 1024)
+    assert sample["bm"].shape == (2, 1024, 1024)
+    assert sample["uv"].shape == (2, 1024, 1024)
+    assert sample["mask"].shape == (1, 1024, 1024)
+
+    # range
+    assert 0 <= sample["image"].min() <= sample["image"].max() <= 255
+    assert 0 <= sample["bm"].min() <= sample["bm"].max() < 1  # [0, 1]
+    assert 0 <= sample["uv"].min() <= sample["uv"].max() <= 1
+    assert set(sample["mask"].numpy().flatten()) == {1.0, 0.0}
+
+
 def test_transforms():
     transform = transforms.Compose(
         [
@@ -38,7 +57,7 @@ def test_transforms():
         ]
     )
 
-    dataset = Doc3D(Path("/home/dawars/datasets/doc3d/"), "tiny", transform)
+    dataset = Doc3D(Path("./tests/doc3d/"), "tiny", transform)
 
     sample = dataset[0]
 
