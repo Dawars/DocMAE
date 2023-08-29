@@ -158,17 +158,18 @@ class RandomResizedCropWithUV(object):
             image[None], **params, size=self.size, interpolation=self.interpolation, antialias=self.antialias
         )[0].clip(0, 255)
 
-        # flip uv Y
+        # flip uv Y # todo uvcrop must be positive
         uv_crop[1, mask_crop.bool()] = 1 - uv_crop[1, mask_crop.bool()]
         min_uv_w, min_uv_h = uv_crop[0, mask_crop.bool()].min(), uv_crop[1, mask_crop.bool()].min()
         max_uv_w, max_uv_h = uv_crop[0, mask_crop.bool()].max(), uv_crop[1, mask_crop.bool()].max()
 
         min_uv_h = min_uv_h * orig_size[0]
         max_uv_h = max_uv_h * orig_size[0]
-        min_uv_w = min_uv_w * orig_size[1]
+        min_uv_w = max(0, min_uv_w * orig_size[1])
         max_uv_w = max_uv_w * orig_size[1]
 
         bm_crop = bm[:, min_uv_h.long() : max_uv_h.long() + 1, min_uv_w.long() : max_uv_w.long() + 1]
+        # todo skip if scale is 1 or no uv
         bm_crop = functional.resize(bm_crop[None], self.size, interpolation=self.interpolation, antialias=self.antialias)[0]
 
         # normalized relative displacement for sampling
@@ -209,9 +210,9 @@ class RandomResizedCropWithUV(object):
         mask_crop_manual = mask[0, min_crop_h : max_crop_h + 1, min_crop_w : max_crop_w + 1]
         mask_crop_manual = functional.resize(
             mask_crop_manual[None], self.size, interpolation=InterpolationMode.NEAREST_EXACT, antialias=False
-        )[0]
+        )[0].float()
 
-        zeros = torch.ones((448, 448, 1))
+        zeros = torch.ones_like(mask).permute(1, 2, 0)
 
         f, axrr = plt.subplots(3, 5)
         for ax in axrr:
@@ -294,7 +295,7 @@ class RandomResizedCropWithUV(object):
         """
         return (
             datapoints.Image(image_crop),
-            datapoints.Image((bm_crop_norm.float().permute(2, 0, 1) + 1) / 2),
+            datapoints.Image((bm_crop_norm[0].float().permute(2, 0, 1) + 1) / 2),
             datapoints.Mask(uv_crop),
             datapoints.Mask(mask_crop[None]),
         )
