@@ -47,14 +47,7 @@ class DocAligner(Dataset):
         bm = (bm_raw + 1) / 2
         bm = datapoints.Image(bm.transpose((2, 0, 1)))  # absolute back mapping [0, 1]
 
-        shape = (1, 3, 1024, 1024)
-        horizontal = (
-            torch.linspace(0, 1.0, shape[3], dtype=torch.float).view(1, 1, 1, shape[3]).expand(1, 1, shape[2], shape[3])
-        )
-        vertical = torch.linspace(0, 1.0, shape[2], dtype=torch.float).view(1, 1, shape[2], 1).expand(1, 1, shape[2], shape[3])
-        grid = torch.cat([horizontal, vertical], 1)
-        uv = F.grid_sample(grid, torch.from_numpy(bm_raw).float()[None])[0]
-        uv = datapoints.Mask(uv)
+        uv = None
 
         mask = Image.open(str(self.data_root / filename).replace("origin", "mask_new")).convert("1").resize((1024, 1024))
         mask = datapoints.Mask(mask)

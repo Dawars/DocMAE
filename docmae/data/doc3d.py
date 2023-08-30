@@ -53,7 +53,7 @@ class Doc3D(Dataset):
         uv_mask = cv2.imread(str(self.data_root / self.prefix_uv / f"{filename}.exr"), cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)
         uv_mask = cv2.cvtColor(uv_mask, cv2.COLOR_BGR2RGB).transpose(2, 0, 1)  # forward mapping
         uv = datapoints.Mask(uv_mask[:2])
-        mask = datapoints.Mask(uv_mask[2:3])
+        mask = datapoints.Mask(uv_mask[2:3].astype(bool))
 
         if self.transforms:
             image, bm, uv, mask = self.transforms(image, bm, uv, mask)

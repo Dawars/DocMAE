@@ -12,40 +12,34 @@ from docmae.utils.transforms import RandomResizedCropWithUV
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
 
 
-def test_doc3d_raw_output():
-    dataset = Doc3D(Path("./tests/doc3d/"), "tiny")
-
-    sample = dataset[0]
+def _test_dataset(sample, size):
 
     # size
-    assert sample["image"].shape == (3, 448, 448)
-    assert sample["bm"].shape == (2, 448, 448)
-    assert sample["uv"].shape == (2, 448, 448)
-    assert sample["mask"].shape == (1, 448, 448)
+    assert sample["image"].shape == (3, size, size)
+    assert sample["bm"].shape == (2, size, size)
+    assert sample["uv"].shape == (2, size, size)
+    assert sample["mask"].shape == (1, size, size)
+    assert sample["mask"].dtype == torch.bool
 
     # range
     assert 0 <= sample["image"].min() <= sample["image"].max() <= 255
     assert 0 <= sample["bm"].min() <= sample["bm"].max() < 1  # [0, 1]
     assert 0 <= sample["uv"].min() <= sample["uv"].max() <= 1
     assert set(sample["mask"].numpy().flatten()) == {1.0, 0.0}
+
+
+def test_doc3d_raw_output():
+    dataset = Doc3D(Path("./tests/doc3d/"), "tiny")
+
+    sample = dataset[0]
+    _test_dataset(sample, 448)
 
 
 def test_docaligner_raw_output():
     dataset = DocAligner(Path("/home/dawars/datasets/DocAligner_result/"), "tiny")
 
     sample = dataset[0]
-
-    # size
-    assert sample["image"].shape == (3, 1024, 1024)
-    assert sample["bm"].shape == (2, 1024, 1024)
-    assert sample["uv"].shape == (2, 1024, 1024)
-    assert sample["mask"].shape == (1, 1024, 1024)
-
-    # range
-    assert 0 <= sample["image"].min() <= sample["image"].max() <= 255
-    assert 0 <= sample["bm"].min() <= sample["bm"].max() < 1  # [0, 1]
-    assert 0 <= sample["uv"].min() <= sample["uv"].max() <= 1
-    assert set(sample["mask"].numpy().flatten()) == {1.0, 0.0}
+    _test_dataset(sample, 1024)
 
 
 def test_transforms():
@@ -88,6 +82,7 @@ def test_crop():
     assert bm.shape == (2, 288, 288)
     assert uv.shape == (2, 288, 288)
     assert mask.shape == (1, 288, 288)
+    assert mask.dtype == torch.bool or mask.dtype == torch.long
 
     # range
     assert 0 <= image.min() <= image.max() <= 255
