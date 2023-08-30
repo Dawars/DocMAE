@@ -38,6 +38,7 @@ scikit-learn = ">=1.0"
 tensorboard = "^2.3"
 minio = "^7.1.15"
 h5py = "^3.9.0"
+kornia = "^0.7.0"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^7.4.0"
