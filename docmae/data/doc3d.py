@@ -5,6 +5,8 @@ from pathlib import Path
 import h5py
 from PIL import Image
 import cv2
+import numpy as np
+import torch
 from torch.utils.data import Dataset
 from torchvision import datapoints
 
@@ -12,16 +14,15 @@ LOGGER = logging.getLogger(__name__)
 
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
 
-import numpy as np
-
 
 class Doc3D(Dataset):
-    def __init__(self, data_root: Path, split: str, transforms=None):
+    def __init__(self, data_root: Path, split: str, transforms=None, image_transform=None):
         """
         Args:
             data_root: Directory where the doc3d dataset is extracted
             split: split name of subset of images
             transforms: optional transforms for data augmentation
+            image_transforms: optional transforms for data augmentation only applied to rgb image
         """
 
         self.data_root = data_root
@@ -31,6 +32,7 @@ class Doc3D(Dataset):
         self.prefix_uv = "uv/"
 
         self.transforms = transforms
+        self.image_transform = image_transform
 
     def __len__(self):
         return len(self.filenames)
@@ -57,5 +59,8 @@ class Doc3D(Dataset):
 
         if self.transforms:
             image, bm, uv, mask = self.transforms(image, bm, uv, mask)
+
+        if self.image_transform:
+            image = self.image_transform(image.to(torch.uint8))
 
         return {"image": image, "bm": bm, "uv": uv, "mask": mask}

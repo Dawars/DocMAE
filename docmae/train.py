@@ -10,12 +10,15 @@ import lightning as L
 from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint
 from lightning.pytorch.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
+
 # We are using BETA APIs, so we deactivate the associated warning, thereby acknowledging that
 # some APIs may slightly change in the future
 import torchvision
+
 torchvision.disable_beta_transforms_warning()
 
 import torchvision.transforms.v2 as transforms
+import torchvision.transforms as T
 
 from docmae.data.doc3d import Doc3D
 from docmae.data.docaligner import DocAligner
@@ -55,22 +58,37 @@ def train(args, config: dict):
 
     train_transform = transforms.Compose(
         [
-            # transforms.RandomRotation((-10, 10)),
-            RandomResizedCropWithUV((288, 288), scale=(0.08, 1.0) if config["training"]["crop"] else (1.0, 1.0), antialias=True),
+            RandomResizedCropWithUV(
+                (288, 288), scale=(0.08, 1.0) if config["training"]["crop"] else (1.0, 1.0), antialias=True
+            ),
             # ReplaceBackground(Path(config["background_path"]), "train1"),
             transforms.ToImageTensor(),
             transforms.ToDtype(torch.float32),
         ]
     )
+    image_transforms = T.RandomChoice(
+        transforms=[
+            T.ColorJitter(brightness=0.5, hue=0.3),
+            T.GaussianBlur(kernel_size=(3, 5), sigma=(0.1, 1)),
+            T.RandomInvert(),
+            T.RandomPosterize(bits=4),
+            T.RandomAdjustSharpness(sharpness_factor=2),
+            T.RandomAutocontrast(),
+            T.RandomEqualize(),
+        ],
+        p=[0.1, 0.1, 0.01, 0.1, 0.1, 0.1, 0.1],
+    )
     val_transform = transforms.Compose(
         [
-            RandomResizedCropWithUV((288, 288), scale=(0.08, 1.0) if config["training"]["crop"] else (1.0, 1.0), antialias=True),
+            RandomResizedCropWithUV(
+                (288, 288), scale=(0.08, 1.0) if config["training"]["crop"] else (1.0, 1.0), antialias=True
+            ),
             # ReplaceBackground(Path(config["background_path"]), "val1"),
             transforms.ToImageTensor(),
             transforms.ToDtype(torch.float32),
         ]
     )
-    train_dataset = DocAligner(Path(config["dataset_path"]), "train", train_transform)
+    train_dataset = DocAligner(Path(config["dataset_path"]), "train", train_transform, image_transforms)
     val_dataset = DocAligner(Path(config["dataset_path"]), "val", val_transform)
     train_loader = DataLoader(
         train_dataset,
