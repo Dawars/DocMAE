@@ -1,5 +1,6 @@
 {
   "dataset_path": "/home/dawars/datasets/doc3d/",
+  "background_path": "/home/dawars/datasets/dtd/",
   "progress_bar": true,
   "training": {
     "seed": 1337,

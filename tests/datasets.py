@@ -7,6 +7,7 @@ import torchvision.transforms.v2 as transforms
 
 from docmae.data.doc3d import Doc3D
 from docmae.data.docaligner import DocAligner
+from docmae.utils.replace_background import ReplaceBackground
 from docmae.utils.transforms import RandomResizedCropWithUV
 
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
@@ -84,6 +85,29 @@ def test_crop():
     assert mask.shape == (1, 288, 288)
     assert mask.dtype == torch.bool or mask.dtype == torch.long
 
+    # range
+    assert 0 <= image.min() <= image.max() <= 255
+    assert -0.9 <= bm.min() <= bm.max() <= 1.9  # [0, 1] but crop reaches outside
+    assert 0 <= uv.min() <= uv.max() <= 1
+    assert set(mask.numpy().flatten()) == {1.0, 0.0}
+
+
+def test_replace_background():
+    transform = ReplaceBackground(Path("./tests/dtd"), "tiny")
+
+    image = torch.randint(0, 255, (3, 288, 288))
+    bm = torch.rand((2, 288, 288))
+    uv = torch.rand((2, 288, 288))
+    mask = torch.randint(0, 2, (1, 288, 288)).bool()
+
+    image, bm, uv, mask = transform((image, bm, uv, mask))
+
+    # size
+    assert image.shape == (3, 288, 288)
+    assert bm.shape == (2, 288, 288)
+    assert uv.shape == (2, 288, 288)
+    assert mask.shape == (1, 288, 288)
+    assert mask.dtype == torch.bool
     # range
     assert 0 <= image.min() <= image.max() <= 255
     assert -0.9 <= bm.min() <= bm.max() <= 1.9  # [0, 1] but crop reaches outside
