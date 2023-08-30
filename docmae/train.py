@@ -28,6 +28,7 @@ from docmae.models.doctr_custom import DocTrOrig
 from docmae.models.doctr_plus import DocTrPlus
 from docmae.models.rectification import Rectification
 from docmae.utils.transforms import RandomResizedCropWithUV
+from docmae.utils.replace_background import ReplaceBackground
 
 logger = logging.getLogger(__name__)
 
@@ -56,12 +57,21 @@ def train(args, config: dict):
         [
             # transforms.RandomRotation((-10, 10)),
             RandomResizedCropWithUV((288, 288), scale=(0.08, 1.0) if config["training"]["crop"] else (1.0, 1.0), antialias=True),
+            ReplaceBackground(Path(config["background_path"]), "train1"),
             transforms.ToImageTensor(),
             transforms.ToDtype(torch.float32),
         ]
     )
-    train_dataset = DocAligner(Path(config["dataset_path"]), "train", train_transform)
-    val_dataset = DocAligner(Path(config["dataset_path"]), "val", train_transform)
+    val_transform = transforms.Compose(
+        [
+            RandomResizedCropWithUV((288, 288), scale=(0.08, 1.0) if config["training"]["crop"] else (1.0, 1.0), antialias=True),
+            ReplaceBackground(Path(config["background_path"]), "val1"),
+            transforms.ToImageTensor(),
+            transforms.ToDtype(torch.float32),
+        ]
+    )
+    train_dataset = Doc3D(Path(config["dataset_path"]), "train", train_transform)
+    val_dataset = Doc3D(Path(config["dataset_path"]), "val", val_transform)
     train_loader = DataLoader(
         train_dataset,
         config["training"]["batch_size"],
