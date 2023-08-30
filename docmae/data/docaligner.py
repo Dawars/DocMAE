@@ -43,7 +43,7 @@ class DocAligner(Dataset):
         image = datapoints.Image(image)
 
         # backwards mapping
-        bm_raw = np.load(str(self.data_root / filename.with_suffix(".npy")).replace("origin", "grid3"))
+        bm_raw = np.load(str(self.data_root / filename.with_suffix(".npy")).replace("origin", "grid3")).astype(float)
         bm = (bm_raw + 1) / 2
         bm = datapoints.Image(bm.transpose((2, 0, 1)))  # absolute back mapping [0, 1]
 
@@ -55,4 +55,7 @@ class DocAligner(Dataset):
         if self.transforms:
             image, bm, uv, mask = self.transforms(image, bm, uv, mask)
 
-        return {"image": image, "bm": bm, "uv": uv, "mask": mask}
+        item = {"image": image, "bm": bm, "mask": mask}
+        if uv is not None:
+            item["uv"] = uv
+        return item

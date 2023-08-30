@@ -131,6 +131,25 @@ class RandomResizedCropWithUV(object):
     def __call__(self, sample) -> Any:
         image, bm, uv, mask = sample
         orig_size = image.shape[1:]
+
+        if uv is None:
+            params = {"top": 0, "left": 0, "height": orig_size[0], "width": orig_size[1]}
+            mask_crop = TF.resized_crop(
+                mask, **params, size=self.size, interpolation=InterpolationMode.NEAREST_EXACT, antialias=False
+            ).squeeze()
+
+            image_crop = TF.resized_crop(
+                image[None], **params, size=self.size, interpolation=self.interpolation, antialias=self.antialias
+            )[0].clip(0, 255)
+            bm_crop = TF.resized_crop(
+                bm[None], **params, size=self.size, interpolation=self.interpolation, antialias=self.antialias
+            )[0]
+            return (
+                datapoints.Image(image_crop),
+                datapoints.Image((((bm_crop.permute(1, 2, 0) - 0.5) * 2).float().permute(2, 0, 1) + 1) / 2),
+                uv,
+                datapoints.Mask(mask_crop[None]),
+            )
         params = self._get_params([image, bm, uv, mask])
         crop = True
         while crop:
