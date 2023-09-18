@@ -10,6 +10,7 @@ import lightning as L
 from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint
 from lightning.pytorch.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
+import kornia.augmentation as ka
 
 # We are using BETA APIs, so we deactivate the associated warning, thereby acknowledging that
 # some APIs may slightly change in the future
@@ -30,8 +31,7 @@ from docmae.models.doctr import DocTr
 from docmae.models.doctr_custom import DocTrOrig
 from docmae.models.doctr_plus import DocTrPlus
 from docmae.models.rectification import Rectification
-from docmae.utils.transforms import RandomResizedCropWithUV
-from docmae.utils.replace_background import ReplaceBackground
+from docmae.data.augmentation.random_resized_crop import RandomResizedCropWithUV
 
 logger = logging.getLogger(__name__)
 
@@ -66,18 +66,29 @@ def train(args, config: dict):
             transforms.ToDtype(torch.float32),
         ]
     )
-    image_transforms = T.RandomChoice(
-        transforms=[
-            T.ColorJitter(brightness=0.5, hue=0.3),
-            T.GaussianBlur(kernel_size=(3, 5), sigma=(0.1, 1)),
-            T.RandomInvert(),
-            T.RandomPosterize(bits=4),
-            T.RandomAdjustSharpness(sharpness_factor=2),
-            T.RandomAutocontrast(),
-            T.RandomEqualize(),
-        ],
-        p=[0.1, 0.1, 0.01, 0.1, 0.1, 0.1, 0.1],
-    )
+    image_transforms = T.Compose([
+        T.ConvertImageDtype(torch.float),
+        T.RandomChoice(
+            transforms=[
+                # change color
+                ka.RandomPlanckianJitter(keepdim=True),
+
+                ka.RandomPlasmaShadow(roughness=(0.1, 0.7), shade_intensity=(-0.25, 0), shade_quantity=(0, 0.5), p=1.0, keepdim=True),
+                ka.RandomPlasmaBrightness(roughness=(0.1, 0.7), intensity=(0.1, 0.5), p=1.0, keepdim=True),
+
+                ka.RandomInvert(p=1., keepdim=True),
+                ka.RandomPosterize(bits=4, p=1., keepdim=True),
+                # ka.RandomSharpness(p=1., keepdim=True),
+                ka.RandomAutoContrast(p=1., keepdim=True),
+                ka.RandomEqualize(p=1., keepdim=True),
+
+                ka.RandomGaussianBlur(kernel_size=(3, 5), sigma=(0.1, 1), p=1., keepdim=True),
+                ka.RandomMotionBlur(3, 35., 0.5, p=1., keepdim=True),
+            ],
+            p=[0.5, 0.25, 0.2,   0.05, 0.1, 0.05, 0.05, 0.1,  0.1, ],
+        ),
+        T.ConvertImageDtype(torch.uint8),
+    ])
     val_transform = transforms.Compose(
         [
             RandomResizedCropWithUV(
