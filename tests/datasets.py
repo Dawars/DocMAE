@@ -7,8 +7,8 @@ import torchvision.transforms.v2 as transforms
 
 from docmae.data.doc3d import Doc3D
 from docmae.data.docaligner import DocAligner
-from docmae.utils.replace_background import ReplaceBackground
-from docmae.utils.transforms import RandomResizedCropWithUV
+from docmae.data.augmentation.random_resized_crop import RandomResizedCropWithUV
+from docmae.data.augmentation.replace_background import ReplaceBackground
 
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
 

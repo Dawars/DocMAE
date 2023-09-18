@@ -18,7 +18,7 @@ from transformers.models.vit_mae.modeling_vit_mae import ViTMAEDecoder, ViTMAEMo
 from docmae.models.docmae import DocMAE
 
 from docmae import setup_logging
-from docmae.utils.transforms import RandomResizedCropWithUV
+from docmae.data.augmentation.random_resized_crop import RandomResizedCropWithUV
 
 logger = logging.getLogger(__name__)
 
