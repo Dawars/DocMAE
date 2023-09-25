@@ -1,0 +1,60 @@
+import docmae.datamodule.docaligner_module
+train.datamodule=@DocAlignerDataModule()
+
+DocAlignerDataModule.data_dir="/home/dawars/datasets/DocAligner_result/"
+DocAlignerDataModule.batch_size=4
+DocAlignerDataModule.num_workers=4
+DocAlignerDataModule.crop=False
+
+import torchvision.transforms
+import kornia.augmentation as ka
+
+import docmae.datamodule.utils
+
+
+get_image_transforms.transform_list = [@float/ConvertImageDtype(),
+                                       @RandomChoice(),
+                                       @int/transforms.ConvertImageDtype()
+                                      ]
+float/ConvertImageDtype.dtype = %torch.float32
+int/ConvertImageDtype.dtype = %torch.uint8
+
+RandomChoice.transforms = [@kornia.augmentation.RandomPlanckianJitter(),
+                            @kornia.augmentation.RandomPlasmaShadow(),
+                            @kornia.augmentation.RandomPlasmaBrightness(),
+                            @kornia.augmentation.RandomInvert(),
+                            @kornia.augmentation.RandomPosterize(),
+                            # @RandomSharpness(),
+                            @kornia.augmentation.RandomAutoContrast(),
+                            @kornia.augmentation.RandomEqualize(),
+                            @kornia.augmentation.RandomGaussianBlur(),
+                            @kornia.augmentation.RandomMotionBlur(),
+                            ]
+RandomChoice.p = [0.5, 0.25, 0.2, 0.05, 0.1, 0.05, 0.05, 0.1, 0.1,]
+
+kornia.augmentation.RandomGaussianBlur.kernel_size=(3, 5)
+kornia.augmentation.RandomGaussianBlur.sigma=(0.1, 1)
+kornia.augmentation.RandomGaussianBlur.p=1.0
+kornia.augmentation.RandomGaussianBlur.keepdim=True
+
+kornia.augmentation.RandomMotionBlur.kernel_size=3
+kornia.augmentation.RandomMotionBlur.angle=35.0
+kornia.augmentation.RandomMotionBlur.direction=0.5
+kornia.augmentation.RandomMotionBlur.p=1.0
+kornia.augmentation.RandomMotionBlur.keepdim=True
+
+kornia.augmentation.RandomPlanckianJitter.keepdim=True
+kornia.augmentation.RandomPlasmaShadow.keepdim=True
+kornia.augmentation.RandomPlasmaBrightness.keepdim=True
+kornia.augmentation.RandomInvert.keepdim=True
+kornia.augmentation.RandomPosterize.keepdim=True
+kornia.augmentation.RandomAutoContrast.keepdim=True
+kornia.augmentation.RandomEqualize.keepdim=True
+
+kornia.augmentation.RandomPlanckianJitter.p=1.0
+kornia.augmentation.RandomPlasmaShadow.p=1.0
+kornia.augmentation.RandomPlasmaBrightness.p=1.0
+kornia.augmentation.RandomInvert.p=1.0
+kornia.augmentation.RandomPosterize.p=1.0
+kornia.augmentation.RandomAutoContrast.p=1.0
+kornia.augmentation.RandomEqualize.p=1.0
