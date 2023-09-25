@@ -16,7 +16,7 @@ os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
 
 
 class Doc3D(Dataset):
-    def __init__(self, data_root: Path, split: str, transforms=None, image_transform=None):
+    def __init__(self, data_root: Path, split: str, transforms=None):
         """
         Args:
             data_root: Directory where the doc3d dataset is extracted
@@ -32,7 +32,6 @@ class Doc3D(Dataset):
         self.prefix_uv = "uv/"
 
         self.transforms = transforms
-        self.image_transform = image_transform
 
     def __len__(self):
         return len(self.filenames)
@@ -60,7 +59,4 @@ class Doc3D(Dataset):
         if self.transforms:
             image, bm, uv, mask = self.transforms(image, bm, uv, mask)
 
-        if self.image_transform:
-            image = self.image_transform(image.to(torch.uint8))
-
-        return {"image": image, "bm": bm, "uv": uv, "mask": mask}
+        return {"image": image.byte(), "bm": bm, "uv": uv, "mask": mask}

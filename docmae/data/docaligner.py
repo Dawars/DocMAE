@@ -19,20 +19,18 @@ LOGGER = logging.getLogger(__name__)
 
 
 class DocAligner(Dataset):
-    def __init__(self, data_root: Path, split: str, transforms=None, image_transform=None):
+    def __init__(self, data_root: Path, split: str, transforms=None):
         """
         Args:
-            data_root: Directory where the doc3d dataset is extracted
+            data_root: Directory where the docaligner dataset is extracted
             split: split name of subset of images
             transforms: optional transforms for data augmentation
-            image_transforms: optional transforms for data augmentation only applied to rgb image
         """
 
         self.data_root = data_root
         self.filenames = (data_root / f"{split}.txt").read_text().strip().split("\n")
 
         self.transforms = transforms
-        self.image_transform = image_transform
 
     def __len__(self):
         return len(self.filenames)
@@ -56,10 +54,7 @@ class DocAligner(Dataset):
         if self.transforms:
             image, bm, uv, mask = self.transforms(image, bm, uv, mask)
 
-        if self.image_transform:
-            image = self.image_transform(image.to(torch.uint8))
-
-        item = {"image": image, "bm": bm, "mask": mask}
+        item = {"image": image.byte(), "bm": bm, "mask": mask}
         if uv is not None:
             item["uv"] = uv
         return item
