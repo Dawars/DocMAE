@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-c", "--config", type=str, help="config file for training parameters")
+    parser.add_argument("-c", "--config", required=True, type=Path, help="json config file for training parameters")
     parser.add_argument(
         "-ll",
         "--log-level",
@@ -47,9 +47,9 @@ def parse_arguments():
         choices=["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
         help="config file for training parameters",
     )
-    parser.add_argument("-l", "--log-dir", type=str, default="", help="folder to store log files")
-    parser.add_argument("-t", "--tensorboard-dir", type=str, default="", help="folder to store tensorboard logs")
-    parser.add_argument("-m", "--model-output-dir", type=str, default="model", help="folder to store trained models")
+    parser.add_argument("-l", "--log-dir", type=Path, default="", help="folder to store log files")
+    parser.add_argument("-t", "--tensorboard-dir", type=Path, default="", help="folder to store tensorboard logs")
+    parser.add_argument("-m", "--model-output-dir", type=Path, default="model", help="folder to store trained models")
     return parser.parse_args()
 
 
@@ -165,11 +165,11 @@ def main():
     args = parse_arguments()
     setup_logging(log_level=args.log_level, log_dir=args.log_dir)
 
-    assert args.config.endswith(".json")
+    assert args.config.suffix == ".json"
 
     # Save config for training traceability and load config parameters
-    config_file = Path(args.model_output_dir) / "config.json"
-    config = json.loads(Path(args.config).read_text())
+    config_file = args.model_output_dir / "config.json"
+    config = json.loads(args.config.read_text())
     shutil.copyfile(args.config, config_file)
     train(args, config)
 
