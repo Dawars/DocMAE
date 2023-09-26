@@ -147,7 +147,7 @@ class RandomResizedCropWithUV(object):
             return (
                 datapoints.Image(image_crop),
                 datapoints.Image((((bm_crop.permute(1, 2, 0) - 0.5) * 2).float().permute(2, 0, 1) + 1) / 2),
-                uv,
+                uv,  # None
                 datapoints.Mask(mask_crop[None]),
             )
         params = self._get_params([image, bm, uv, mask])
@@ -314,6 +314,7 @@ class RandomResizedCropWithUV(object):
         return (
             datapoints.Image(image_crop),
             datapoints.Image((bm_crop_norm.float().permute(2, 0, 1) + 1) / 2),
-            datapoints.Mask(uv_crop),
+            # datapoints.Mask(uv_crop),
+            None,
             datapoints.Mask(mask_crop[None]),
         )

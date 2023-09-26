@@ -59,4 +59,7 @@ class Doc3D(Dataset):
         if self.transforms:
             image, bm, uv, mask = self.transforms(image, bm, uv, mask)
 
-        return {"image": image.byte(), "bm": bm, "uv": uv, "mask": mask}
+        item = {"image": image.byte(), "bm": bm, "mask": mask}
+        if uv is not None:
+            item["uv"] = uv
+        return item
