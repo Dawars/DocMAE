@@ -43,7 +43,7 @@ class MixedDataModule(L.LightningDataModule):
         self.docaligner_dir = Path(docaligner_dir)
         self.doc3d_dir = Path(doc3d_dir)
         self.background_dir = Path(background_dir)
-        self.batch_size = batch_size
+        self.batch_size = max(batch_size, 4)  # use 4 when searching batch size
         self.num_workers = num_workers
         self.crop = crop
 

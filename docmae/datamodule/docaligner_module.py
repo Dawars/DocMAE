@@ -35,7 +35,7 @@ class DocAlignerDataModule(L.LightningDataModule):
         """
         super().__init__()
         self.data_dir = data_dir
-        self.batch_size = batch_size
+        self.batch_size = max(batch_size, 4)  # use 4 when searching batch size
         self.num_workers = num_workers
         self.crop = crop
 
