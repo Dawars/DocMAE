@@ -44,7 +44,7 @@ class MixedDataModule(L.LightningDataModule):
         self.doc3d_dir = Path(doc3d_dir)
         self.background_dir = Path(background_dir)
         self.batch_size = batch_size
-        self.num_workers = num_workers
+        self.num_workers = min(batch_size, num_workers)
         self.crop = crop
 
         self.train_transform = transforms.Compose(

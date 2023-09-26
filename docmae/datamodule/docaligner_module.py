@@ -36,7 +36,7 @@ class DocAlignerDataModule(L.LightningDataModule):
         super().__init__()
         self.data_dir = data_dir
         self.batch_size = batch_size
-        self.num_workers = num_workers
+        self.num_workers = min(batch_size, num_workers)
         self.crop = crop
 
         self.train_transform = transforms.Compose(
