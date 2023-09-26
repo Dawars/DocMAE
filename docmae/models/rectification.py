@@ -94,9 +94,9 @@ class Rectification(L.LightningModule):
             )
             self.tb_log.add_images("train/unwarped", image_unwarped.detach().cpu(), global_step=self.global_step)
 
-            self.tb_log.add_images(
-                "train/bm_target", torch.cat((bm_target.detach().cpu() / 287, ones), dim=1), global_step=self.global_step
-            )
+            # self.tb_log.add_images(
+            #     "train/bm_target", torch.cat((bm_target.detach().cpu() / 287, ones), dim=1), global_step=self.global_step
+            # )
             self.tb_log.add_images(
                 "train/flow_target",
                 flow_to_image(bm_target.detach().cpu() - self.coodslar.detach().cpu()),
@@ -157,9 +157,9 @@ class Rectification(L.LightningModule):
 
         if batch_idx == 0 and self.global_step == 0:
             self.tb_log.add_images("val/image", image.detach().cpu(), global_step=self.global_step)
-            self.tb_log.add_images(
-                "val/bm", torch.cat((bm_target.detach().cpu() / 287, ones), dim=1), global_step=self.global_step
-            )
+            # self.tb_log.add_images(
+            #     "val/bm", torch.cat((bm_target.detach().cpu() / 287, ones), dim=1), global_step=self.global_step
+            # )
             self.tb_log.add_images(
                 "val/flow",
                 flow_to_image((bm_target.detach().cpu() - self.coodslar.detach().cpu())),
@@ -167,12 +167,12 @@ class Rectification(L.LightningModule):
             )
 
         if batch_idx == 0:
-            self.tb_log.add_images(
-                "val/bm_pred", torch.cat((bm_pred.detach().cpu() / 287, ones), dim=1), global_step=self.global_step
-            )
+            # self.tb_log.add_images(
+            #     "val/bm_pred", torch.cat((bm_pred.detach().cpu() / 287, ones), dim=1), global_step=self.global_step
+            # )
             self.tb_log.add_images("val/flow_pred", flow_to_image(flow_pred.detach().cpu()), global_step=self.global_step)
 
-            self.tb_log.add_images("val/bm_diff", flow_to_image(bm_target.cpu() - bm_pred.cpu()), global_step=self.global_step)
+            # self.tb_log.add_images("val/bm_diff", flow_to_image(bm_target.cpu() - bm_pred.cpu()), global_step=self.global_step)
 
             bm_ = (bm_pred / 287 - 0.5) * 2
             bm_ = bm_.permute((0, 2, 3, 1))
