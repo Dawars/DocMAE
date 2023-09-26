@@ -44,7 +44,7 @@ class MixedDataModule(L.LightningDataModule):
         self.doc3d_dir = Path(doc3d_dir)
         self.background_dir = Path(background_dir)
         self.batch_size = batch_size
-        self.num_workers = min(batch_size, num_workers)
+        self.num_workers = num_workers
         self.crop = crop
 
         self.train_transform = transforms.Compose(
@@ -96,7 +96,7 @@ class MixedDataModule(L.LightningDataModule):
             ConcatDataset([self.train_doc3d, self.train_docaligner]),
             self.batch_size,
             shuffle=True,
-            num_workers=self.num_workers,
+            num_workers=min(self.batch_size, self.num_workers),
             pin_memory=True,
         )
 
@@ -105,6 +105,6 @@ class MixedDataModule(L.LightningDataModule):
             ConcatDataset([self.val_doc3d, self.val_docaligner]),
             self.batch_size,
             shuffle=False,
-            num_workers=self.num_workers,
+            num_workers=min(self.batch_size, self.num_workers),
             pin_memory=True,
         )
