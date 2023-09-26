@@ -62,7 +62,7 @@ class DocAlignerDataModule(L.LightningDataModule):
         self.val_dataset = DocAligner(Path(self.data_dir), "val", self.val_transform)
 
     def on_before_batch_transfer(self, batch, dataloader_idx: int):
-        if isinstance(batch, dict):  # not example tensor
+        if self.trainer.training and isinstance(batch, dict):  # not example tensor
             with torch.no_grad():
                 batch["image"] = self.image_transforms(batch["image"])
         return batch

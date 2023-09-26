@@ -58,7 +58,6 @@ class MixedDataModule(L.LightningDataModule):
         self.val_transform = transforms.Compose(
             [
                 RandomResizedCropWithUV((288, 288), scale=(0.08, 1.0) if self.crop else (1.0, 1.0), antialias=True),
-                T.RandomApply([ReplaceBackground(self.background_dir, "val1")], p=0.25),
                 transforms.ToImageTensor(),
                 transforms.ToDtype(torch.float32),
             ]
@@ -86,7 +85,7 @@ class MixedDataModule(L.LightningDataModule):
         self.val_doc3d = Doc3D(Path(self.doc3d_dir), "val", self.val_transform)
 
     def on_before_batch_transfer(self, batch, dataloader_idx: int):
-        if isinstance(batch, dict):  # not example tensor
+        if self.trainer.training and isinstance(batch, dict):  # not example tensor
             with torch.no_grad():
                 batch["image"] = self.image_transforms(batch["image"])
         return batch
