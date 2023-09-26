@@ -50,7 +50,7 @@ class MixedDataModule(L.LightningDataModule):
         self.train_transform = transforms.Compose(
             [
                 RandomResizedCropWithUV((288, 288), scale=(0.08, 1.0) if self.crop else (1.0, 1.0), antialias=True),
-                T.RandomApply([ReplaceBackground(self.background_dir, "train1")], p=0.25),
+                ReplaceBackground(self.background_dir, "train1"),
                 transforms.ToImageTensor(),
                 transforms.ToDtype(torch.float32),
             ]
