@@ -94,9 +94,8 @@ def train(args, config: dict, datamodule: L.LightningDataModule):
     # test export
     print(model.to_torchscript(method="trace"))
 
-    if datamodule.batch_size == -1:
-        tuner = Tuner(trainer)
-        tuner.scale_batch_size(model, datamodule=datamodule, mode="binsearch")
+    tuner = Tuner(trainer)
+    tuner.scale_batch_size(model, datamodule=datamodule, mode="binsearch")
 
     trainer.fit(model, datamodule=datamodule)
 
