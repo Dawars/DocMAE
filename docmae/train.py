@@ -11,6 +11,7 @@ import torch
 import lightning as L
 from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint
 from lightning.pytorch.loggers import TensorBoardLogger
+from lightning.pytorch.tuner import Tuner
 
 # We are using BETA APIs, so we deactivate the associated warning, thereby acknowledging that
 # some APIs may slightly change in the future
@@ -93,6 +94,10 @@ def train(args, config: dict, datamodule: L.LightningDataModule):
 
     # test export
     print(model.to_torchscript(method="trace"))
+
+    if datamodule.batch_size == -1:
+        tuner = Tuner(trainer)
+        tuner.scale_batch_size(model, datamodule=datamodule, mode="binsearch")
 
     trainer.fit(model, datamodule=datamodule)
 
