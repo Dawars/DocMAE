@@ -75,7 +75,6 @@ def train(args, config: dict, datamodule: L.LightningDataModule):
         max_steps=config["training"].get("steps", -1),
         num_sanity_val_steps=1,
         enable_progress_bar=config["progress_bar"],
-        limit_train_batches=20
     )
 
     hidden_dim = config["model"]["hidden_dim"]
