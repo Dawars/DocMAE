@@ -39,6 +39,7 @@ tensorboard = "^2.3"
 minio = "^7.1.15"
 h5py = "^3.9.0"
 kornia = "^0.7.0"
+gin-config = "^0.5.0"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^7.4.0"
